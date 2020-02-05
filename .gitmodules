@@ -1,0 +1,15 @@
+[submodule "vendored/glew"]
+	path = vendored/glew
+	url = https://github.com/ReliaSolve/glew-cmake
+[submodule "vendored/jsoncpp"]
+	path = vendored/jsoncpp
+	url = https://github.com/ReliaSolve/jsoncpp.git
+[submodule "vendored/libfunctionality"]
+	path = vendored/libfunctionality
+	url = https://github.com/ReliaSolve/libfunctionality.git
+[submodule "vendored/OSVR-Core"]
+	path = vendored/OSVR-Core
+	url = https://github.com/ReliaSolve/OSVR-Core.git
+[submodule "vendored/OSVR-RenderManager"]
+	path = vendored/OSVR-RenderManager
+	url = https://github.com/ReliaSolve/OSVR-RenderManager.git
