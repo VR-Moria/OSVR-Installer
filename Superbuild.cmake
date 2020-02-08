@@ -1,7 +1,7 @@
 
 set(cmake_common_args
   -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
-  -DCMAKE_VERBOSE_MAKEFILE:STRING=${CMAKE_VERBOSE_MAKEFILE}
+  -DCMAKE_VERBOSE_MAKEFILE:BOOL=${CMAKE_VERBOSE_MAKEFILE}
   -DCMAKE_C_COMPILER:PATH=${CMAKE_C_COMPILER}
   -DCMAKE_CXX_COMPILER:PATH=${CMAKE_CXX_COMPILER}
   -DCMAKE_CXX_FLAGS:STRING=${CMAKE_CXX_FLAGS}
@@ -53,17 +53,28 @@ add_external_project(jsoncpp vendored/jsoncpp OFF "" "" ON)
 
 set(GLEW_ARGS
     -DONLY_LIBS:BOOL=ON
+    -Dglew-cmake_BUILD_STATIC:BOOL=OFF
 )
 add_external_project(glew vendored/glew OFF "" "${GLEW_ARGS}" ON)
+
+if(MSVC)
+  # This is missing in the current source code for the SDL2 mirror we
+  # are using.
+  set(SDL2_ARGS
+      -DCMAKE_SHARED_LINKER_FLAGS="vcruntime.lib"
+  )
+endif(MSVC)
+add_external_project(sdl2 vendored/sdl2 OFF "" "${SDL2_ARGS}" OFF)
 
 ExternalProject_Add( OSVR-RenderManager
     SOURCE_DIR ${CMAKE_SOURCE_DIR}/vendored/OSVR-RenderManager
     BUILD_ALWAYS 1
     DOWNLOAD_COMMAND ${GIT_EXECUTABLE} submodule update --init --recursive vendor/vrpn
     DOWNLOAD_DIR ${CMAKE_SOURCE_DIR}/vendored/OSVR-RenderManager
-    CMAKE_ARGS ${cmake_common_args}
+    CMAKE_ARGS
+      ${cmake_common_args}
     INSTALL_DIR ${CMAKE_BINARY_DIR}/INSTALL
-    DEPENDS OSVR-Core jsoncpp glew submodule_init
+    DEPENDS OSVR-Core jsoncpp glew submodule_init sdl2
 )
 
 ExternalProject_Add( OSVRInstaller

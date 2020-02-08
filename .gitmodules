@@ -13,3 +13,6 @@
 [submodule "vendored/OSVR-RenderManager"]
 	path = vendored/OSVR-RenderManager
 	url = https://github.com/ReliaSolve/OSVR-RenderManager.git
+[submodule "vendored/sdl2"]
+	path = vendored/sdl2
+	url = https://github.com/ReliaSolve/SDL-mirror.git
