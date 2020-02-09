@@ -17,7 +17,7 @@ set(cmake_common_args
 )
 
 add_custom_target(submodule_init
-    COMMAND ${GIT_EXECUTABLE} submodule init --checkout ${CMAKE_SOURCE_DIR}
+    COMMAND ${GIT_EXECUTABLE} submodule update --init --checkout ${CMAKE_SOURCE_DIR}
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
 
