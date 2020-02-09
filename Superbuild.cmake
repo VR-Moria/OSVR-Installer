@@ -17,7 +17,7 @@ set(cmake_common_args
 )
 
 add_custom_target(submodule_init
-    COMMAND ${GIT_EXECUTABLE} submodule init ${CMAKE_SOURCE_DIR}
+    COMMAND ${GIT_EXECUTABLE} submodule init --checkout ${CMAKE_SOURCE_DIR}
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
 
@@ -47,7 +47,7 @@ add_external_project(libfunctionality vendored/libfunctionality OFF "" "${LIBFUN
 set(OSVRCORE_ARGS
     -DBUILD_TESTING:BOOL=OFF
 )
-add_external_project(OSVR-Core vendored/libfunctionality OFF "" "${OSVRCORE_ARGS}" ON)
+add_external_project(OSVR-Core vendored/OSVR-Core OFF "libfunctionality" "${OSVRCORE_ARGS}" ON)
 
 add_external_project(jsoncpp vendored/jsoncpp OFF "" "" ON)
 
@@ -82,5 +82,5 @@ ExternalProject_Add( OSVRInstaller
     BUILD_ALWAYS 1
     CMAKE_ARGS ${cmake_common_args}
     INSTALL_DIR ${CMAKE_BINARY_DIR}/INSTALL
-    DEPENDS libfunctionality OSVR-RenderManager
+    DEPENDS OSVR-RenderManager
 )
