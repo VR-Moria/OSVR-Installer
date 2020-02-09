@@ -46,6 +46,7 @@ add_external_project(libfunctionality vendored/libfunctionality OFF "" "${LIBFUN
 
 set(OSVRCORE_ARGS
     -DBUILD_TESTING:BOOL=OFF
+    -DBUILD_WITH_OPENCV:BOOL=OFF
 )
 add_external_project(OSVR-Core vendored/OSVR-Core OFF "libfunctionality" "${OSVRCORE_ARGS}" ON)
 
