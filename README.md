@@ -5,7 +5,7 @@ the dependencies of the OSVR-RenderManager project (other than the
 prerequisites described below) assuming that the system has a compiler
 and CMake installed.
 
-It places all DLLs and executables in the INSTALL/bin directory under the
+It places all executables in the INSTALL/bin directory under the
 build directory (including the samples and test programs if they are
 configured in the build), the headers in INSTALL/include and the libraries in
 INSTALL/lib.
