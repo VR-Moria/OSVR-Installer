@@ -14,8 +14,8 @@ find_package(Git REQUIRED)
 # Configuration Step
 ############################################################
 # Build options
-option( BUILD_EXAMPLES "Make API examples" OFF )
-option( BUILD_TESTS "Build test functions" OFF )
+option( BUILD_EXAMPLES "Make API examples" ON )
+option( BUILD_TESTS "Build test functions" ON )
 option( USE_SUPERBUILD "Build all dependencies in SUPERBUILD mode" ON )
 
 list(APPEND CMAKE_MODULE_PATH
