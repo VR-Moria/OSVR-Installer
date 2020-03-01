@@ -5,11 +5,11 @@ IMPORTANT: This installer is not built with the NDA libraries that implement Dir
 Step 1: Run an OSVR server (obtained from an OSVR Core install) with a compatible configuration file.
   (If you do not have this installed, you can run one of the servers using the installed shortcuts;
    these are older-format files run against an older server, but should still work.)
-  osvr_server_nondirectmode_window: Displays in a window that can be moved around.
+  osvr_server_nondirectmode_window: Displays in a window without motion.
+  osvr_server_nondirectmode_window_lookabout: Displays stored looking-around motions.
 
 Step 2: Run one of the example programs
   RenderManager*: Various graphics libraries and modes of operation.
-  AdjustableRenderingDelayD3D: Shows the impact of timewarp with 500ms rendering delay.
   RenderManagerOpenGLHeadSpaceExample: Displays a small cube in head space to debug backwards eyes.
   SolidColor provides a slowly-varying solid color and works with all graphics APIs.
   SpinCubeD3D provides a smoothly-rotating cube to test update consistency.
@@ -21,5 +21,7 @@ Source code for RenderManager, including example programs, is available at:
   https://github.com/sensics/OSVR-RenderManager
 
 Version notes:
+1.1.00:
+    Adds "lookabout" shortcuts that replay recorded head-tracker data.
 1.0.00:
     Initial release

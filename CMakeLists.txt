@@ -47,6 +47,10 @@ install(
     ${CMAKE_CURRENT_SOURCE_DIR}/vendored/OSVR-RenderManager/installer/nondirectmode_window.json
     ${CMAKE_CURRENT_SOURCE_DIR}/nondirectmode_window.bat
     ${CMAKE_CURRENT_SOURCE_DIR}/nondirectmode_window.sh
+    ${CMAKE_CURRENT_SOURCE_DIR}/lookabout.vrpn
+    ${CMAKE_CURRENT_SOURCE_DIR}/nondirectmode_window_lookabout.json
+    ${CMAKE_CURRENT_SOURCE_DIR}/nondirectmode_window_lookabout.bat
+    ${CMAKE_CURRENT_SOURCE_DIR}/nondirectmode_window_lookabout.sh
   PERMISSIONS
     OWNER_EXECUTE OWNER_WRITE OWNER_READ
     GROUP_EXECUTE GROUP_READ
