@@ -40,11 +40,16 @@ endif(USE_SUPERBUILD)
 # Build Step
 ############################################################
 
-#install(
-#  FILES
-#    # ${DAEMON_HEADERS}
-#  DESTINATION
-#    include
-#  COMPONENT
-#    headers
-#)
+# Install the sample server configuration files and scripts.
+
+install(
+  FILES
+    ${CMAKE_CURRENT_SOURCE_DIR}/vendored/OSVR-RenderManager/installer/nondirectmode_window.json
+    ${CMAKE_CURRENT_SOURCE_DIR}/nondirectmode_window.bat
+    ${CMAKE_CURRENT_SOURCE_DIR}/nondirectmode_window.sh
+  PERMISSIONS
+    OWNER_EXECUTE OWNER_WRITE OWNER_READ
+    GROUP_EXECUTE GROUP_READ
+    WORLD_EXECUTE WORLD_READ
+  DESTINATION bin
+)

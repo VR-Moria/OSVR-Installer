@@ -79,10 +79,10 @@ ExternalProject_Add( OSVR-RenderManager
 )
 
 # Add any local projects that we want to build
-#ExternalProject_Add( OSVRInstaller
-#    SOURCE_DIR ${CMAKE_SOURCE_DIR}
-#    BUILD_ALWAYS 1
-#    CMAKE_ARGS ${cmake_common_args}
-#    INSTALL_DIR ${CMAKE_BINARY_DIR}/INSTALL
-#    DEPENDS OSVR-RenderManager
-#)
+ExternalProject_Add( OSVRInstaller
+    SOURCE_DIR ${CMAKE_SOURCE_DIR}
+    BUILD_ALWAYS 1
+    CMAKE_ARGS ${cmake_common_args}
+    INSTALL_DIR ${CMAKE_BINARY_DIR}/INSTALL
+    DEPENDS OSVR-RenderManager
+)
