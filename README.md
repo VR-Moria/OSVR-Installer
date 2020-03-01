@@ -10,12 +10,28 @@ build directory (including the samples and test programs if they are
 configured in the build), the headers in INSTALL/include and the libraries in
 INSTALL/lib.
 
-## Windows installer
+## Running on Windows
+
+The file nondirectmode_window.bat will run an OSVR server with a configuration
+file that shows a window on the main display.  This script must be run from within
+the INSTALL/bin directory where it lives.  Once that is running, any of the
+RenderManager demo programs can be run.
 
 This project also comes with an osvrInstaller.aip file, which is and Advanced
 Installer script to generate an MSI file for installation on Windows.  It
 assumes that the CMake build directory has been set to C:\tmp\vs2019\OSVR-Installer
 so that it can find the installed files where it expects them.
+
+Once installed, the *osvr_server nondirectmode_window* shortcut can be used to
+start the server and then any of the RenderManager demo shortcuts can be used
+to display.
+
+## Running on Linux and Mac
+
+The file nondirectmode_window.sh will run an OSVR server with a configuration
+file that shows a window on the main display.  This script must be run from within
+the INSTALL/bin directory where it lives.  Once that is running, any of the
+RenderManager demo programs can be run.
 
 ## Prerequisites
 
