@@ -12,10 +12,14 @@ INSTALL/lib.
 
 ## Running on Windows
 
-The file nondirectmode_window.bat will run an OSVR server with a configuration
-file that shows a window on the main display.  This script must be run from within
-the INSTALL/bin directory where it lives.  Once that is running, any of the
-RenderManager demo programs can be run.
+The file *nondirectmode_window.bat* will run an OSVR server with a configuration
+file that shows a window on the main display and the file
+*nondirectmode_window_lookabout.bat* will show it with stored user motion.
+These scripts must be run from within
+the INSTALL/bin directory where they live.  Once one of them is running, any of the
+RenderManager demo programs can be run; they must be run from within the
+INSTALL/bin directory for the lookabout approach because that's where the stored
+data file is.
 
 This project also comes with an osvrInstaller.aip file, which is and Advanced
 Installer script to generate an MSI file for installation on Windows.  It
@@ -28,10 +32,14 @@ to display.
 
 ## Running on Linux and Mac
 
-The file nondirectmode_window.sh will run an OSVR server with a configuration
-file that shows a window on the main display.  This script must be run from within
-the INSTALL/bin directory where it lives.  Once that is running, any of the
-RenderManager demo programs can be run.
+The file *nondirectmode_window.sh* will run an OSVR server with a configuration
+file that shows a window on the main display and the file
+*nondirectmode_window_lookabout.sh* will show it with stored user motion.
+These scripts must be run from within
+the INSTALL/bin directory where they live.  Once one of them is running, any of the
+RenderManager demo programs can be run; they must be run from within the
+INSTALL/bin directory for the lookabout approach because that's where the stored
+data file is.
 
 ## Prerequisites
 
