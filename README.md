@@ -10,6 +10,13 @@ build directory (including the samples and test programs if they are
 configured in the build), the headers in INSTALL/include and the libraries in
 INSTALL/lib.
 
+## Windows installer
+
+This project also comes with an osvrInstaller.aip file, which is and Advanced
+Installer script to generate an MSI file for installation on Windows.  It
+assumes that the CMake build directory has been set to C:\tmp\vs2019\OSVR-Installer
+so that it can find the installed files where it expects them.
+
 ## Prerequisites
 
 As of February 2020, the CMake compilation of Boost is still in development,
