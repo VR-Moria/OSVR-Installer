@@ -205,6 +205,7 @@ const int FONT_SIZE = 48;
 GLuint g_font_tex = 0;
 GLuint g_fontShader = 0;
 GLuint g_fontVertexBuffer = 0;
+GLuint g_fontVertexArrayId = 0;
 
 class FontVertex {
 public:
@@ -310,6 +311,7 @@ bool render_text(const GLdouble projection[], const GLdouble modelView[],
   }
 
   // Configure the vertex-buffer objects.
+  glBindVertexArray(g_fontVertexArrayId);
   {
     size_t const stride = sizeof(vertexBufferData[0]);
     // VBO
@@ -348,6 +350,7 @@ bool render_text(const GLdouble projection[], const GLdouble modelView[],
     return false;
   }
 
+  glBindVertexArray(0);
   glBindBuffer(GL_ARRAY_BUFFER, 0);
 
   err = glGetError();
@@ -901,6 +904,7 @@ int main(int argc, char* argv[])
       }
     }
     glGenBuffers(1, &g_fontVertexBuffer);
+    glGenVertexArrays(1, &g_fontVertexArrayId);
 
     // Continue rendering until it is time to quit.
     while (!quit) {
@@ -916,6 +920,8 @@ int main(int argc, char* argv[])
         }
     }
 
+    glDeleteVertexArrays(1, &g_fontVertexArrayId);
+    glDeleteBuffers(1, &g_fontVertexBuffer);
     if (g_face) { FT_Done_Face(g_face); g_face = nullptr; }
     if (g_ft) { FT_Done_FreeType(g_ft); g_ft = nullptr; }
 
