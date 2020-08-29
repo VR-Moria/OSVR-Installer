@@ -84,8 +84,7 @@ static const GLchar* fragmentShader =
     "uniform sampler2D tex;\n"
     "void main()\n"
     "{\n"
-    "   color = fragmentColor;\n"
-    "   //color = fragmentColor * texture(tex, textureCoord).rgb;\n"
+    "   color = fragmentColor * texture(tex, textureCoord).rgb;\n"
     "}\n";
 
 class SampleShader {
@@ -203,6 +202,7 @@ FT_Face g_face = nullptr;
 #endif
 const int FONT_SIZE = 48;
 GLuint g_font_tex = 0;
+GLuint g_on_tex = 0;
 GLuint g_fontShader = 0;
 GLuint g_fontVertexBuffer = 0;
 GLuint g_fontVertexArrayId = 0;
@@ -760,6 +760,7 @@ void DrawWorld(
     osvr::renderkit::OSVR_PoseState_to_OpenGL(viewGL, pose);
 
     /// Draw a cube with a 5-meter radius as the room we are floating in.
+    glBindTexture(GL_TEXTURE_2D, g_on_tex);
     roomCube.draw(projectionGL, viewGL);
 
     if (!render_text(projectionGL, viewGL, "Hello, World", 0,0, 1,1)) {
@@ -906,6 +907,26 @@ int main(int argc, char* argv[])
     glGenBuffers(1, &g_fontVertexBuffer);
     glGenVertexArrays(1, &g_fontVertexArrayId);
 
+    // Make an all-on texture to use when we're not rendering text.  Fill it with all 1's.
+    // Note: We could also use a different shader for when we're not rendering textures.
+    // Set the parameters we need to render the text properly.
+    glGenTextures(1, &g_on_tex);
+    glBindTexture(GL_TEXTURE_2D, g_on_tex);
+    GLubyte onTex[] = { 255,255,255,255 };
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    glPixelStorei(GL_UNPACK_ROW_LENGTH, 2);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_LUMINANCE, 2, 2,
+      0, GL_LUMINANCE, GL_UNSIGNED_BYTE, onTex);
+    GLenum err = glGetError();
+    if (err != GL_NO_ERROR) {
+      std::cerr << "Error writing 'on' texture: "
+        << err << std::endl;
+    }
+
     // Continue rendering until it is time to quit.
     while (!quit) {
         // Update the context so we get our callbacks called and
@@ -922,6 +943,7 @@ int main(int argc, char* argv[])
 
     glDeleteVertexArrays(1, &g_fontVertexArrayId);
     glDeleteBuffers(1, &g_fontVertexBuffer);
+    glDeleteTextures(1, &g_on_tex);
     glDeleteTextures(1, &g_font_tex);
     if (g_face) { FT_Done_Face(g_face); g_face = nullptr; }
     if (g_ft) { FT_Done_FreeType(g_ft); g_ft = nullptr; }
