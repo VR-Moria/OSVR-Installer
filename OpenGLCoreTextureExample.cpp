@@ -246,7 +246,7 @@ static void addFontQuad(std::vector<FontVertex> &vertexBufferData,
 }
 
 bool render_text(const GLdouble projection[], const GLdouble modelView[],
-    const char *text, float x, float y, float sx, float sy)
+    const char *text, float x, float y, float z, float sx, float sy)
 {
   if (!g_face) {
     std::cerr << "render_text(): No face" << std::endl;
@@ -297,7 +297,7 @@ bool render_text(const GLdouble projection[], const GLdouble modelView[],
   float h = g->bitmap.rows * sy;
   size_t chars = (strlen(text) + 1);
   vertexBufferData.clear();
-  addFontQuad(vertexBufferData, x, x + chars*w, y+h, y, 0.6f, 0,0,0,0.5f);
+  addFontQuad(vertexBufferData, x, x + chars*w, y+h, y, z, 0,0,0,0.5f);
   glBindBuffer(GL_ARRAY_BUFFER, g_fontVertexBuffer);
   glBufferData(GL_ARRAY_BUFFER,
     sizeof(vertexBufferData[0]) * vertexBufferData.size(),
@@ -413,7 +413,7 @@ bool render_text(const GLdouble projection[], const GLdouble modelView[],
 
     // Blend in the text, fully opaque (inverse alpha) and fully white.
     vertexBufferData.clear();
-    addFontQuad(vertexBufferData, x2, x2 + w, y2, y2 - h, 0.7f, 1,1,1,0);
+    addFontQuad(vertexBufferData, x2, x2 + w, y2, y2 - h, z+0.01f, 1,1,1,0);
     glBindBuffer(GL_ARRAY_BUFFER, g_fontVertexBuffer);
     glBufferData(GL_ARRAY_BUFFER,
       sizeof(vertexBufferData[0]) * vertexBufferData.size(),
@@ -459,7 +459,8 @@ bool render_text(const GLdouble projection[], const GLdouble modelView[],
   glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
   glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
 
-  glBindTexture(GL_TEXTURE_2D, 0);
+  // Use the always-on texture when we're not rendering text.
+  glBindTexture(GL_TEXTURE_2D, g_on_tex);
   glDisable(GL_BLEND);
 
   return true;
@@ -760,10 +761,9 @@ void DrawWorld(
     osvr::renderkit::OSVR_PoseState_to_OpenGL(viewGL, pose);
 
     /// Draw a cube with a 5-meter radius as the room we are floating in.
-    glBindTexture(GL_TEXTURE_2D, g_on_tex);
     roomCube.draw(projectionGL, viewGL);
 
-    if (!render_text(projectionGL, viewGL, "Hello, World", 0,0, 1,1)) {
+    if (!render_text(projectionGL, viewGL, "Hello, World", 0,0,-2, 0.006f,0.006f)) {
       quit = true;
     }
 }
@@ -910,6 +910,7 @@ int main(int argc, char* argv[])
     // Make an all-on texture to use when we're not rendering text.  Fill it with all 1's.
     // Note: We could also use a different shader for when we're not rendering textures.
     // Set the parameters we need to render the text properly.
+    // Leave this texture bound whenever we're not drawing text.
     glGenTextures(1, &g_on_tex);
     glBindTexture(GL_TEXTURE_2D, g_on_tex);
     GLubyte onTex[] = { 255,255,255,255 };
