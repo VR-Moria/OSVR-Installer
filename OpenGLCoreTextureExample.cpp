@@ -279,57 +279,6 @@ bool render_text(const GLdouble projection[], const GLdouble modelView[],
     return false;
   }
 
-  // Configure the vertex-buffer objects.
-  glBindBuffer(GL_ARRAY_BUFFER, g_fontVertexBuffer);
-  glBindVertexArray(g_fontVertexArrayId);
-  {
-    size_t const stride = sizeof(vertexBufferData[0]);
-    // VBO
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride,
-      (GLvoid*)(offsetof(FontVertex, pos)));
-
-    // color
-    glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, stride,
-      (GLvoid*)(offsetof(FontVertex, col)));
-
-    // texture
-    glEnableVertexAttribArray(2);
-    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, stride,
-      (GLvoid*)(offsetof(FontVertex, tex)));
-  }
-
-  err = glGetError();
-  if (err != GL_NO_ERROR) {
-    std::cerr << "render_text(): Error after attributes: "
-      << err << std::endl;
-    return false;
-  }
-
-  // Draw the quad.
-  {
-    GLsizei numElements = static_cast<GLsizei>(vertexBufferData.size());
-    glDrawArrays(GL_TRIANGLES, 0, numElements);
-  }
-
-  err = glGetError();
-  if (err != GL_NO_ERROR) {
-    std::cerr << "render_text(): Error after quad: "
-      << err << std::endl;
-    return false;
-  }
-
-  glBindVertexArray(0);
-  glBindBuffer(GL_ARRAY_BUFFER, 0);
-
-  err = glGetError();
-  if (err != GL_NO_ERROR) {
-    std::cerr << "render_text(): Error after bind: "
-      << err << std::endl;
-    return false;
-  }
-
   // Generate the font texture if we don't yet have it.  In any case, bind it as
   // the active texture.
   if (!g_font_tex) {
@@ -396,6 +345,8 @@ bool render_text(const GLdouble projection[], const GLdouble modelView[],
     }
 
     // Configure the vertex-buffer objects.
+    glBindBuffer(GL_ARRAY_BUFFER, g_fontVertexBuffer);
+    glBindVertexArray(g_fontVertexArrayId);
     {
       size_t const stride = sizeof(vertexBufferData[0]);
       // VBO
@@ -419,6 +370,7 @@ bool render_text(const GLdouble projection[], const GLdouble modelView[],
       GLsizei numElements = static_cast<GLsizei>(vertexBufferData.size());
       glDrawArrays(GL_TRIANGLES, 0, numElements);
     }
+    glBindVertexArray(0);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 
     x += (g->advance.x / 64) * sx;
