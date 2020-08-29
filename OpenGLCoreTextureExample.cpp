@@ -244,10 +244,13 @@ static void addFontQuad(std::vector<FontVertex> &vertexBufferData,
   vertexBufferData.emplace_back(v);
 }
 
-void render_text(const GLdouble projection[], const GLdouble modelView[],
+bool render_text(const GLdouble projection[], const GLdouble modelView[],
     const char *text, float x, float y, float sx, float sy)
 {
-  if (!g_face) { return; }
+  if (!g_face) {
+    std::cerr << "render_text(): No face" << std::endl;
+    return false;
+  }
   FT_GlyphSlot g = g_face->glyph;
   GLenum err;
 
@@ -259,6 +262,7 @@ void render_text(const GLdouble projection[], const GLdouble modelView[],
   if (err != GL_NO_ERROR) {
     std::cerr << "render_text(): Error after use program: "
       << err << std::endl;
+    return false;
   }
 
   glActiveTexture(GL_TEXTURE0);
@@ -267,6 +271,7 @@ void render_text(const GLdouble projection[], const GLdouble modelView[],
   if (err != GL_NO_ERROR) {
     std::cerr << "render_text(): Error after texture set: "
       << err << std::endl;
+    return false;
   }
 
   std::vector<FontVertex> vertexBufferData;
@@ -279,6 +284,7 @@ void render_text(const GLdouble projection[], const GLdouble modelView[],
   if (err != GL_NO_ERROR) {
     std::cerr << "render_text(): Error after blend enable: "
       << err << std::endl;
+    return false;
   }
 
   // Blend in a black rectangle that partially covers the region behind it, and which the
@@ -300,6 +306,7 @@ void render_text(const GLdouble projection[], const GLdouble modelView[],
   if (err != GL_NO_ERROR) {
     std::cerr << "render_text(): Error after buffering data: "
       << err << std::endl;
+    return false;
   }
 
   // Configure the vertex-buffer objects.
@@ -321,16 +328,33 @@ void render_text(const GLdouble projection[], const GLdouble modelView[],
       (GLvoid*)(offsetof(FontVertex, tex)));
   }
 
+  err = glGetError();
+  if (err != GL_NO_ERROR) {
+    std::cerr << "render_text(): Error after attributes: "
+      << err << std::endl;
+    return false;
+  }
+
   // Draw the quad.
   {
     GLsizei numElements = static_cast<GLsizei>(vertexBufferData.size());
     glDrawArrays(GL_TRIANGLES, 0, numElements);
   }
-  glBindBuffer(GL_ARRAY_BUFFER, 0);
+
   err = glGetError();
   if (err != GL_NO_ERROR) {
-    std::cerr << "render_text(): Error after mask: "
+    std::cerr << "render_text(): Error after quad: "
       << err << std::endl;
+    return false;
+  }
+
+  glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+  err = glGetError();
+  if (err != GL_NO_ERROR) {
+    std::cerr << "render_text(): Error after bind: "
+      << err << std::endl;
+    return false;
   }
 
   // Generate the font texture if we don't yet have it.  In any case, bind it as
@@ -348,6 +372,7 @@ void render_text(const GLdouble projection[], const GLdouble modelView[],
   if (err != GL_NO_ERROR) {
     std::cerr << "render_text(): Error binding texture: "
       << err << std::endl;
+    return false;
   }
 
   // Blend the characters in, so we see them written above the background.
@@ -368,6 +393,7 @@ void render_text(const GLdouble projection[], const GLdouble modelView[],
     if (err != GL_NO_ERROR) {
       std::cerr << "render_text(): Error setting texture params: "
         << err << std::endl;
+      return false;
     }
     glTexImage2D(GL_TEXTURE_2D, 0, GL_LUMINANCE, g->bitmap.width, g->bitmap.rows,
       0, GL_LUMINANCE, GL_UNSIGNED_BYTE, g->bitmap.buffer);
@@ -375,6 +401,7 @@ void render_text(const GLdouble projection[], const GLdouble modelView[],
     if (err != GL_NO_ERROR) {
       std::cerr << "render_text(): Error writing texture: "
         << err << std::endl;
+      return false;
     }
     float x2 = x + g->bitmap_left * sx;
     float y2 = y + g->bitmap_top * sy;
@@ -392,6 +419,7 @@ void render_text(const GLdouble projection[], const GLdouble modelView[],
     if (err != GL_NO_ERROR) {
       std::cerr << "render_text(): Error buffering data: "
         << err << std::endl;
+      return false;
     }
 
     // Configure the vertex-buffer objects.
@@ -430,6 +458,8 @@ void render_text(const GLdouble projection[], const GLdouble modelView[],
 
   glBindTexture(GL_TEXTURE_2D, 0);
   glDisable(GL_BLEND);
+
+  return true;
 }
 
 class Cube {
@@ -729,7 +759,9 @@ void DrawWorld(
     /// Draw a cube with a 5-meter radius as the room we are floating in.
     roomCube.draw(projectionGL, viewGL);
 
-    render_text(projectionGL, viewGL, "Hello, World", 0,0, 1,1);
+    if (!render_text(projectionGL, viewGL, "Hello, World", 0,0, 1,1)) {
+      quit = true;
+    }
 }
 
 // This is used to draw both hands, but a different callback could be
