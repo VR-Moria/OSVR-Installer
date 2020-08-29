@@ -368,7 +368,7 @@ bool render_text(const GLdouble projection[], const GLdouble modelView[],
         << err << std::endl;
       return false;
     }
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_LUMINANCE, g->bitmap.width, g->bitmap.rows,
+    glTexImage2D(GL_TEXTURE_2D, 0, 1, g->bitmap.width, g->bitmap.rows,
       0, GL_LUMINANCE, GL_UNSIGNED_BYTE, g->bitmap.buffer);
     err = glGetError();
     if (err != GL_NO_ERROR) {
@@ -731,6 +731,7 @@ void DrawWorld(
     osvr::renderkit::OSVR_PoseState_to_OpenGL(viewGL, pose);
 
     /// Draw a cube with a 5-meter radius as the room we are floating in.
+    glBindTexture(GL_TEXTURE_2D, g_on_tex);
     roomCube.draw(projectionGL, viewGL);
 
     if (!render_text(projectionGL, viewGL, "Hello, World Space", -1,1,-2, 0.004f,0.004f)) {
@@ -777,6 +778,7 @@ void DrawHead(
   osvr::renderkit::OSVR_PoseState_to_OpenGL(viewGL, pose);
 
   // Draw some text in front of us.
+  glBindTexture(GL_TEXTURE_2D, g_on_tex);
   if (!render_text(projectionGL, viewGL, "Hello, Head Space", -1,0,-2, 0.003f,0.003f)) {
     quit = true;
   }
@@ -817,11 +819,14 @@ void DrawHand(
 
     GLdouble viewGL[16];
     osvr::renderkit::OSVR_PoseState_to_OpenGL(viewGL, pose);
+    glBindTexture(GL_TEXTURE_2D, g_on_tex);
     handsCube.draw(projectionGL, viewGL);
 }
 
 int main(int argc, char* argv[])
 {
+    GLenum err;
+
     // Get an OSVR client context to use to access the devices
     // that we need.
     osvr::clientkit::ClientContext context(
@@ -928,19 +933,25 @@ int main(int argc, char* argv[])
     // Leave this texture bound whenever we're not drawing text.
     glGenTextures(1, &g_on_tex);
     glBindTexture(GL_TEXTURE_2D, g_on_tex);
-    GLubyte onTex[] = { 255,255,255,255 };
+    GLfloat onTex[] = { 1,1,1,1, 1,1,1,1, 1,1,1,1, 1,1,1,1 };
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
     glPixelStorei(GL_UNPACK_ROW_LENGTH, 2);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_LUMINANCE, 2, 2,
-      0, GL_LUMINANCE, GL_UNSIGNED_BYTE, onTex);
-    GLenum err = glGetError();
+    err = glGetError();
+    if (err != GL_NO_ERROR) {
+      std::cerr << "Error setting parameters for 'on' texture: "
+        << err << std::endl;
+    }
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 2, 2,
+      0, GL_RGBA, GL_FLOAT, onTex);
+    err = glGetError();
     if (err != GL_NO_ERROR) {
       std::cerr << "Error writing 'on' texture: "
         << err << std::endl;
+      quit = true;
     }
 
     // Continue rendering until it is time to quit.
