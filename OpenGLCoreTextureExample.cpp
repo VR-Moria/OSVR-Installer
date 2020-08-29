@@ -46,6 +46,9 @@
 
 #include <GL/glew.h>
 
+#include <freetype2/ft2build.h>
+#include FT_FREETYPE_H
+
 // Standard includes
 #include <iostream>
 #include <string>
@@ -61,22 +64,29 @@ static const GLchar* vertexShader =
     "#version 330 core\n"
     "layout(location = 0) in vec3 position;\n"
     "layout(location = 1) in vec3 vertexColor;\n"
+    "layout(location = 2) in vec2 vertexTextureCoord;\n"
     "out vec3 fragmentColor;\n"
+    "out vec2 textureCoord;\n"
     "uniform mat4 modelView;\n"
     "uniform mat4 projection;\n"
     "void main()\n"
     "{\n"
     "   gl_Position = projection * modelView * vec4(position,1);\n"
     "   fragmentColor = vertexColor;\n"
+    "   textureCoord = vertexTextureCoord;\n"
     "}\n";
 
-static const GLchar* fragmentShader = "#version 330 core\n"
-                                      "in vec3 fragmentColor;\n"
-                                      "out vec3 color;\n"
-                                      "void main()\n"
-                                      "{\n"
-                                      "    color = fragmentColor;\n"
-                                      "}\n";
+static const GLchar* fragmentShader =
+    "#version 330 core\n"
+    "in vec3 fragmentColor;\n"
+    "in vec2 textureCoord;\n"
+    "layout(location = 0) out vec3 color;\n"
+    "uniform sampler2D tex;\n"
+    "void main()\n"
+    "{\n"
+    "   color = fragmentColor;\n"
+    "   //color = fragmentColor * texture(tex, textureCoord).rgb;\n"
+    "}\n";
 
 class SampleShader {
   public:
@@ -177,6 +187,250 @@ class SampleShader {
     }
 };
 static SampleShader sampleShader;
+
+// Things needed for Freetype font display
+FT_Library g_ft = nullptr;
+FT_Face g_face = nullptr;
+#ifdef _WIN32
+  std::vector<const char*> FONTS = {"C:/Windows/Fonts/arial.ttf"};
+#elif defined(__APPLE__)
+  std::vector<const char*> FONTS = {"/System/Library/Fonts/NewYork.ttf"};
+#else
+  std::vector<const char*> FONTS = {
+    "/usr/share/fonts/truetype/ubuntu-font-family/Ubuntu-R.ttf",
+    "/usr/share/fonts/truetype/ubuntu/Ubuntu-R.ttf"
+  };
+#endif
+const int FONT_SIZE = 48;
+GLuint g_font_tex = 0;
+GLuint g_fontShader = 0;
+GLuint g_fontVertexBuffer = 0;
+
+class FontVertex {
+public:
+  GLfloat pos[3];
+  GLfloat col[4];
+  GLfloat tex[2];
+};
+
+static void addFontQuad(std::vector<FontVertex> &vertexBufferData,
+  GLfloat left, GLfloat right, GLfloat top, GLfloat bottom, GLfloat depth,
+  GLfloat R, GLfloat G, GLfloat B, GLfloat alpha)
+{
+  FontVertex v;
+  v.col[0] = R; v.col[1] = G; v.col[2] = B; v.col[3] = alpha;
+
+  // Invert the Y texture coordinate so that we draw the textures
+  // right-side up.
+  // Switch the order so we have clockwise front-facing.
+  v.pos[0] = left; v.pos[1] = bottom; v.pos[2] = depth;
+  v.tex[0] = 0; v.tex[1] = 1;
+  vertexBufferData.emplace_back(v);
+  v.pos[0] = right; v.pos[1] = top; v.pos[2] = depth;
+  v.tex[0] = 1; v.tex[1] = 0;
+  vertexBufferData.emplace_back(v);
+  v.pos[0] = right; v.pos[1] = bottom; v.pos[2] = depth;
+  v.tex[0] = 1; v.tex[1] = 1;
+  vertexBufferData.emplace_back(v);
+
+  v.pos[0] = left; v.pos[1] = bottom; v.pos[2] = depth;
+  v.tex[0] = 0; v.tex[1] = 1;
+  vertexBufferData.emplace_back(v);
+  v.pos[0] = left; v.pos[1] = top; v.pos[2] = depth;
+  v.tex[0] = 0; v.tex[1] = 0;
+  vertexBufferData.emplace_back(v);
+  v.pos[0] = right; v.pos[1] = top; v.pos[2] = depth;
+  v.tex[0] = 1; v.tex[1] = 0;
+  vertexBufferData.emplace_back(v);
+}
+
+void render_text(const GLdouble projection[], const GLdouble modelView[],
+    const char *text, float x, float y, float sx, float sy)
+{
+  if (!g_face) { return; }
+  FT_GlyphSlot g = g_face->glyph;
+  GLenum err;
+
+  // Use the font shader to render this.  It may activate a different texture unit, so we
+  // need to make sure we active the first one once we are using the program.
+  //sampleShader.useProgram(projection, modelView);
+
+  err = glGetError();
+  if (err != GL_NO_ERROR) {
+    std::cerr << "render_text(): Error after use program: "
+      << err << std::endl;
+  }
+
+  glActiveTexture(GL_TEXTURE0);
+
+  err = glGetError();
+  if (err != GL_NO_ERROR) {
+    std::cerr << "render_text(): Error after texture set: "
+      << err << std::endl;
+  }
+
+  std::vector<FontVertex> vertexBufferData;
+
+  // Enable blending using alpha.
+  glEnable(GL_BLEND);
+  glBlendFunc(GL_SRC_COLOR, GL_ONE_MINUS_SRC_ALPHA);
+
+  err = glGetError();
+  if (err != GL_NO_ERROR) {
+    std::cerr << "render_text(): Error after blend enable: "
+      << err << std::endl;
+  }
+
+  // Blend in a black rectangle that partially covers the region behind it, and which the
+  // text will be drawn above.  Flip it upside down so that its vertices will show up as
+  // front facing when it is re-flipped in the addFontQuad() method.
+  glBindTexture(GL_TEXTURE_2D, 0);
+  FT_Load_Char(g_face, '0', FT_LOAD_RENDER);
+  float w = g->bitmap.width * sx;
+  float h = g->bitmap.rows * sy;
+  size_t chars = (strlen(text) + 1);
+  vertexBufferData.clear();
+  addFontQuad(vertexBufferData, x, x + chars*w, y+h, y, 0.6f, 0,0,0,0.5f);
+  glBindBuffer(GL_ARRAY_BUFFER, g_fontVertexBuffer);
+  glBufferData(GL_ARRAY_BUFFER,
+    sizeof(vertexBufferData[0]) * vertexBufferData.size(),
+    &vertexBufferData[0], GL_STATIC_DRAW);
+
+  err = glGetError();
+  if (err != GL_NO_ERROR) {
+    std::cerr << "render_text(): Error after buffering data: "
+      << err << std::endl;
+  }
+
+  // Configure the vertex-buffer objects.
+  {
+    size_t const stride = sizeof(vertexBufferData[0]);
+    // VBO
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride,
+      (GLvoid*)(offsetof(FontVertex, pos)));
+
+    // color
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, stride,
+      (GLvoid*)(offsetof(FontVertex, col)));
+
+    // texture
+    glEnableVertexAttribArray(2);
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, stride,
+      (GLvoid*)(offsetof(FontVertex, tex)));
+  }
+
+  // Draw the quad.
+  {
+    GLsizei numElements = static_cast<GLsizei>(vertexBufferData.size());
+    glDrawArrays(GL_TRIANGLES, 0, numElements);
+  }
+  glBindBuffer(GL_ARRAY_BUFFER, 0);
+  err = glGetError();
+  if (err != GL_NO_ERROR) {
+    std::cerr << "render_text(): Error after mask: "
+      << err << std::endl;
+  }
+
+  // Generate the font texture if we don't yet have it.  In any case, bind it as
+  // the active texture.
+  if (!g_font_tex) {
+    // Note that we don't really have a good place to destroy this texture
+    // because the rendering window is destroyed by each subclass in its own
+    // main() thread instance and it would have to be destroyed just before that
+    // in each.  When the window is destroyed, hopefully all of its texture
+    // resources are also cleaned up by the driver.
+    glGenTextures(1, &g_font_tex);
+  }
+  glBindTexture(GL_TEXTURE_2D, g_font_tex);
+  err = glGetError();
+  if (err != GL_NO_ERROR) {
+    std::cerr << "render_text(): Error binding texture: "
+      << err << std::endl;
+  }
+
+  // Blend the characters in, so we see them written above the background.
+  // We use color for the alpha channel so it appears wherever the character appears.
+  // Go through each character and render it until we get to the NULL terminator.
+  for (const char *p = text; *p; p++) {
+    if (FT_Load_Char(g_face, *p, FT_LOAD_RENDER))
+      continue;
+
+    // Set the parameters we need to render the text properly.
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    glPixelStorei(GL_UNPACK_ROW_LENGTH, g->bitmap.width);
+    err = glGetError();
+    if (err != GL_NO_ERROR) {
+      std::cerr << "render_text(): Error setting texture params: "
+        << err << std::endl;
+    }
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_LUMINANCE, g->bitmap.width, g->bitmap.rows,
+      0, GL_LUMINANCE, GL_UNSIGNED_BYTE, g->bitmap.buffer);
+    err = glGetError();
+    if (err != GL_NO_ERROR) {
+      std::cerr << "render_text(): Error writing texture: "
+        << err << std::endl;
+    }
+    float x2 = x + g->bitmap_left * sx;
+    float y2 = y + g->bitmap_top * sy;
+    float w = g->bitmap.width * sx;
+    float h = g->bitmap.rows * sy;
+
+    // Blend in the text, fully opaque (inverse alpha) and fully white.
+    vertexBufferData.clear();
+    addFontQuad(vertexBufferData, x2, x2 + w, y2, y2 - h, 0.7f, 1,1,1,0);
+    glBindBuffer(GL_ARRAY_BUFFER, g_fontVertexBuffer);
+    glBufferData(GL_ARRAY_BUFFER,
+      sizeof(vertexBufferData[0]) * vertexBufferData.size(),
+      &vertexBufferData[0], GL_STATIC_DRAW);
+    err = glGetError();
+    if (err != GL_NO_ERROR) {
+      std::cerr << "render_text(): Error buffering data: "
+        << err << std::endl;
+    }
+
+    // Configure the vertex-buffer objects.
+    {
+      size_t const stride = sizeof(vertexBufferData[0]);
+      // VBO
+      glEnableVertexAttribArray(0);
+      glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride,
+        (GLvoid*)(offsetof(FontVertex, pos)));
+
+      // color
+      glEnableVertexAttribArray(1);
+      glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, stride,
+        (GLvoid*)(offsetof(FontVertex, col)));
+
+      // texture
+      glEnableVertexAttribArray(2);
+      glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, stride,
+        (GLvoid*)(offsetof(FontVertex, tex)));
+    }
+
+    // Draw the quad.
+    {
+      GLsizei numElements = static_cast<GLsizei>(vertexBufferData.size());
+      glDrawArrays(GL_TRIANGLES, 0, numElements);
+    }
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+    x += (g->advance.x / 64) * sx;
+    y += (g->advance.y / 64) * sy;
+  }
+
+  // Set things back to the defaults
+  glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
+  glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+
+  glBindTexture(GL_TEXTURE_2D, 0);
+  glDisable(GL_BLEND);
+}
 
 class Cube {
   public:
@@ -329,7 +583,8 @@ static bool quit = false;
 #ifdef _WIN32
 // Note: On Windows, this runs in a different thread from
 // the main application.
-static BOOL CtrlHandler(DWORD fdwCtrlType) {
+static BOOL CtrlHandler(DWORD fdwCtrlType)
+{
     switch (fdwCtrlType) {
     // Handle the CTRL-C signal.
     case CTRL_C_EVENT:
@@ -350,12 +605,14 @@ static BOOL CtrlHandler(DWORD fdwCtrlType) {
 // the state of the button that was pressed.  This lets the callback
 // be used to handle any button press that just needs to update state.
 void myButtonCallback(void* userdata, const OSVR_TimeValue* /*timestamp*/,
-                      const OSVR_ButtonReport* report) {
+                      const OSVR_ButtonReport* report)
+{
     bool* result = static_cast<bool*>(userdata);
     *result = (report->state != 0);
 }
 
-bool SetupRendering(osvr::renderkit::GraphicsLibrary library) {
+bool SetupRendering(osvr::renderkit::GraphicsLibrary library)
+{
     // Make sure our pointers are filled in correctly.
     if (library.OpenGL == nullptr) {
         std::cerr << "SetupRendering: No OpenGL GraphicsLibrary, this should "
@@ -377,7 +634,8 @@ void SetupDisplay(
     void* userData //< Passed into SetDisplayCallback
     , osvr::renderkit::GraphicsLibrary library //< Graphics library context to use
     , osvr::renderkit::RenderBuffer buffers //< Buffers to use
-    ) {
+    )
+{
     // Make sure our pointers are filled in correctly.  The config file selects
     // the graphics library to use, and may not match our needs.
     if (library.OpenGL == nullptr) {
@@ -410,7 +668,8 @@ void SetupEye(
     , osvr::renderkit::OSVR_ProjectionMatrix
         projection //< Projection matrix set by RenderManager
     , size_t whichEye //< Which eye are we setting up for?
-    ) {
+    )
+{
     // Make sure our pointers are filled in correctly.  The config file selects
     // the graphics library to use, and may not match our needs.
     if (library.OpenGL == nullptr) {
@@ -443,7 +702,8 @@ void DrawWorld(
     , osvr::renderkit::OSVR_ProjectionMatrix
         projection //< Projection matrix set by RenderManager
     , OSVR_TimeValue deadline //< When the frame should be sent to the screen
-    ) {
+    )
+{
     // Make sure our pointers are filled in correctly.  The config file selects
     // the graphics library to use, and may not match our needs.
     if (library.OpenGL == nullptr) {
@@ -468,6 +728,8 @@ void DrawWorld(
 
     /// Draw a cube with a 5-meter radius as the room we are floating in.
     roomCube.draw(projectionGL, viewGL);
+
+    render_text(projectionGL, viewGL, "Hello, World", 0,0, 1,1);
 }
 
 // This is used to draw both hands, but a different callback could be
@@ -485,7 +747,8 @@ void DrawHand(
     ) {
     // Make sure our pointers are filled in correctly.  The config file selects
     // the graphics library to use, and may not match our needs.
-    if (library.OpenGL == nullptr) {
+    if (library.OpenGL == nullptr)
+{
         std::cerr
             << "DrawHand: No OpenGL GraphicsLibrary, this should not happen"
             << std::endl;
@@ -507,7 +770,8 @@ void DrawHand(
     handsCube.draw(projectionGL, viewGL);
 }
 
-int main(int argc, char* argv[]) {
+int main(int argc, char* argv[])
+{
     // Get an OSVR client context to use to access the devices
     // that we need.
     osvr::clientkit::ClientContext context(
@@ -582,6 +846,30 @@ int main(int argc, char* argv[]) {
     // platforms, this can cause a spurious  error 1280.
     glGetError();
 
+    // Initialize Freetype and load the font we're going to use.
+    // This must be done after GLEW and OpenGL are initialized.
+    if (FT_Init_FreeType(&g_ft)) {
+      std::cerr << "Could not init freetype library" << std::endl;
+    } else {
+      // Check for any available fonts.  Use the first one we find.
+      bool found = false;
+      for (auto f : FONTS) {
+        if (0 == FT_New_Face(g_ft, f, 0, &g_face)) {
+          found = true;
+        } else {
+          std::cerr << "Fovea: Could not open font " << f << std::endl;
+        }
+      }
+      if (!found) {
+        std::cerr << "Fovea: Could not open any font" << std::endl;
+        FT_Done_FreeType(g_ft);
+        g_ft = nullptr;
+      } else {
+        FT_Set_Pixel_Sizes(g_face, 0, FONT_SIZE);
+      }
+    }
+    glGenBuffers(1, &g_fontVertexBuffer);
+
     // Continue rendering until it is time to quit.
     while (!quit) {
         // Update the context so we get our callbacks called and
@@ -595,6 +883,9 @@ int main(int argc, char* argv[]) {
             quit = true;
         }
     }
+
+    if (g_face) { FT_Done_Face(g_face); g_face = nullptr; }
+    if (g_ft) { FT_Done_FreeType(g_ft); g_ft = nullptr; }
 
     // Close the Renderer interface cleanly.
     delete render;
