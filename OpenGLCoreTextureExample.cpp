@@ -738,6 +738,50 @@ void DrawWorld(
     }
 }
 
+// This can be used to draw a heads-up display.  Unlike in a non-VR game,
+// this can't be drawn in screen space because it has to be at a consistent
+// location for stereo viewing through potentially-distorted and offset lenses
+// from the HMD.  This example uses a small cube drawn in front of us.
+// NOTE: For a fixed-display set-up, you do want to draw in screen space.
+void DrawHead(
+  void* userData //< Passed into AddRenderCallback
+  , osvr::renderkit::GraphicsLibrary library //< Graphics library context to use
+  , osvr::renderkit::RenderBuffer buffers //< Buffers to use
+  , osvr::renderkit::OSVR_ViewportDescription
+  viewport //< Viewport we're rendering into
+  , OSVR_PoseState pose //< OSVR ModelView matrix set by RenderManager
+  , osvr::renderkit::OSVR_ProjectionMatrix
+  projection //< Projection matrix set by RenderManager
+  , OSVR_TimeValue deadline //< When the frame should be sent to the screen
+) {
+  // Make sure our pointers are filled in correctly.  The config file selects
+  // the graphics library to use, and may not match our needs.
+  if (library.OpenGL == nullptr) {
+    std::cerr
+      << "DrawWorld: No OpenGL GraphicsLibrary, this should not happen"
+      << std::endl;
+    return;
+  }
+  if (buffers.OpenGL == nullptr) {
+    std::cerr << "DrawWorld: No OpenGL RenderBuffer, this should not happen"
+      << std::endl;
+    return;
+  }
+
+  osvr::renderkit::GraphicsLibraryOpenGL* glLibrary = library.OpenGL;
+
+  GLdouble projectionGL[16];
+  osvr::renderkit::OSVR_Projection_to_OpenGL(projectionGL, projection);
+
+  GLdouble viewGL[16];
+  osvr::renderkit::OSVR_PoseState_to_OpenGL(viewGL, pose);
+
+  // Draw some text in front of us.
+  if (!render_text(projectionGL, viewGL, "Hello, Head Space", -1,0,-2, 0.003f,0.003f)) {
+    quit = true;
+  }
+}
+
 // This is used to draw both hands, but a different callback could be
 // provided for each hand if desired.
 void DrawHand(
@@ -816,6 +860,7 @@ int main(int argc, char* argv[])
     // Register callbacks to render things in left hand, right
     // hand, and world space.
     render->AddRenderCallback("/", DrawWorld);
+    render->AddRenderCallback("/me/head", DrawHead);
     render->AddRenderCallback("/me/hands/left", DrawHand);
     render->AddRenderCallback("/me/hands/right", DrawHand);
 
