@@ -65,9 +65,9 @@ target_link_libraries(OpenGLCoreTextureExample PRIVATE
 )
 target_compile_features(OpenGLCoreTextureExample PRIVATE cxx_range_for)
 
-install(TARGETS
-  OpenGLCoreTextureExample
-  RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+message(info "XXX CMAKE_INSTALL_BINDER = ${CMAKE_INSTALL_BINDIR}")
+install(TARGETS OpenGLCoreTextureExample
+  DESTINATION bin)
 
 # Install the sample server configuration files and scripts.
 
