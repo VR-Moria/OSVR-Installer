@@ -63,9 +63,9 @@
 static const GLchar* vertexShader =
     "#version 330 core\n"
     "layout(location = 0) in vec3 position;\n"
-    "layout(location = 1) in vec3 vertexColor;\n"
+    "layout(location = 1) in vec4 vertexColor;\n"
     "layout(location = 2) in vec2 vertexTextureCoord;\n"
-    "out vec3 fragmentColor;\n"
+    "out vec4 fragmentColor;\n"
     "out vec2 textureCoord;\n"
     "uniform mat4 modelView;\n"
     "uniform mat4 projection;\n"
@@ -78,13 +78,13 @@ static const GLchar* vertexShader =
 
 static const GLchar* fragmentShader =
     "#version 330 core\n"
-    "in vec3 fragmentColor;\n"
+    "in vec4 fragmentColor;\n"
     "in vec2 textureCoord;\n"
-    "layout(location = 0) out vec3 color;\n"
+    "layout(location = 0) out vec4 color;\n"
     "uniform sampler2D tex;\n"
     "void main()\n"
     "{\n"
-    "   color = fragmentColor * texture(tex, textureCoord).rgb;\n"
+    "   color = fragmentColor * texture(tex, textureCoord);\n"
     "}\n";
 
 class SampleShader {
@@ -279,29 +279,8 @@ bool render_text(const GLdouble projection[], const GLdouble modelView[],
     return false;
   }
 
-  // Blend in a black rectangle that partially covers the region behind it, and which the
-  // text will be drawn above.  Flip it upside down so that its vertices will show up as
-  // front facing when it is re-flipped in the addFontQuad() method.
-  glBindTexture(GL_TEXTURE_2D, 0);
-  FT_Load_Char(g_face, '0', FT_LOAD_RENDER);
-  float w = g->bitmap.width * sx;
-  float h = g->bitmap.rows * sy;
-  size_t chars = (strlen(text) + 1);
-  vertexBufferData.clear();
-  addFontQuad(vertexBufferData, x, x + chars*w, y+h, y, z, 0,0,0,0.5f);
-  glBindBuffer(GL_ARRAY_BUFFER, g_fontVertexBuffer);
-  glBufferData(GL_ARRAY_BUFFER,
-    sizeof(vertexBufferData[0]) * vertexBufferData.size(),
-    &vertexBufferData[0], GL_STATIC_DRAW);
-
-  err = glGetError();
-  if (err != GL_NO_ERROR) {
-    std::cerr << "render_text(): Error after buffering data: "
-      << err << std::endl;
-    return false;
-  }
-
   // Configure the vertex-buffer objects.
+  glBindBuffer(GL_ARRAY_BUFFER, g_fontVertexBuffer);
   glBindVertexArray(g_fontVertexArrayId);
   {
     size_t const stride = sizeof(vertexBufferData[0]);
@@ -404,7 +383,7 @@ bool render_text(const GLdouble projection[], const GLdouble modelView[],
 
     // Blend in the text, fully opaque (inverse alpha) and fully white.
     vertexBufferData.clear();
-    addFontQuad(vertexBufferData, x2, x2 + w, y2, y2 - h, z+0.01f, 1,1,1,0);
+    addFontQuad(vertexBufferData, x2, x2 + w, y2, y2 - h, z, 1,1,1,0);
     glBindBuffer(GL_ARRAY_BUFFER, g_fontVertexBuffer);
     glBufferData(GL_ARRAY_BUFFER,
       sizeof(vertexBufferData[0]) * vertexBufferData.size(),
