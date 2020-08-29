@@ -922,6 +922,7 @@ int main(int argc, char* argv[])
 
     glDeleteVertexArrays(1, &g_fontVertexArrayId);
     glDeleteBuffers(1, &g_fontVertexBuffer);
+    glDeleteTextures(1, &g_font_tex);
     if (g_face) { FT_Done_Face(g_face); g_face = nullptr; }
     if (g_ft) { FT_Done_FreeType(g_ft); g_ft = nullptr; }
 
