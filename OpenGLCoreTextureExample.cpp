@@ -317,14 +317,32 @@ bool render_text(const GLdouble projection[], const GLdouble modelView[],
         << err << std::endl;
       return false;
     }
-    glTexImage2D(GL_TEXTURE_2D, 0, 1, g->bitmap.width, g->bitmap.rows,
+#ifdef __APPLE__
+    // Trying to send GL_LUMINANCE textures fails on the mac, though it
+    // work on Windows.  So to fix this, we make a 4-times copy of the
+    // data and then send that as RGBA.
+    std::vector<GLubyte> tex(4 * g->bitmap.width * g->bitmap.rows);
+    for (int r = 0; r < g->bitmap.rows; r++) {
+      for (int c = 0; c < g->bitmap.width; c++) {
+        GLubyte val = g->bitmap.buffer[c + g->bitmap.width * r];
+        for (int i = 0; i < 4; i++) {
+          tex[i + 4 * (c + (g->bitmap.width * r))] = val;
+        }
+      }
+    }
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, g->bitmap.width, g->bitmap.rows,
+      0, GL_RGBA, GL_UNSIGNED_BYTE, tex.data());
+#else
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_LUMINANCE, g->bitmap.width, g->bitmap.rows,
       0, GL_LUMINANCE, GL_UNSIGNED_BYTE, g->bitmap.buffer);
+#endif
     err = glGetError();
     if (err != GL_NO_ERROR) {
       std::cerr << "render_text(): Error writing texture: "
         << err << std::endl;
       return false;
     }
+
     float x2 = x + g->bitmap_left * sx;
     float y2 = y + g->bitmap_top * sy;
     float w = g->bitmap.width * sx;
@@ -885,7 +903,11 @@ int main(int argc, char* argv[])
     // Leave this texture bound whenever we're not drawing text.
     glGenTextures(1, &g_on_tex);
     glBindTexture(GL_TEXTURE_2D, g_on_tex);
-    GLfloat onTex[] = { 1,1,1,1, 1,1,1,1, 1,1,1,1, 1,1,1,1 };
+    GLubyte onTex[] = {
+      255,255,255,255,
+      255,255,255,255,
+      255,255,255,255,
+      255,255,255,255 };
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
@@ -898,7 +920,7 @@ int main(int argc, char* argv[])
         << err << std::endl;
     }
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 2, 2,
-      0, GL_RGBA, GL_FLOAT, onTex);
+      0, GL_RGBA, GL_UNSIGNED_BYTE, onTex);
     err = glGetError();
     if (err != GL_NO_ERROR) {
       std::cerr << "Error writing 'on' texture: "
