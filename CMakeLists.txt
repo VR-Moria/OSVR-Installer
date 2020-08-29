@@ -43,7 +43,31 @@ endif(USE_SUPERBUILD)
 # Install text-based sample application that shows how to render
 # textured objects in OSVR using OpenGL.
 
+if (APPLE)
+  add_definitions(-DGL_SILENCE_DEPRECATION)
+endif (APPLE)
+
+find_package(osvrRenderManager CONFIG REQUIRED)
+osvrrm_find_SDL2()
+osvrrm_find_GLEW()
+find_package(OpenGL REQUIRED)
 find_package(Freetype CONFIG REQUIRED)
+add_executable(OpenGLCoreTextureExample OpenGLCoreTextureExample.cpp)
+#target_include_directories(OpenGLCoreTextureExample PRIVATE
+#  ${CMAKE_INSTALL_INCUDEDIR}
+#)
+target_link_libraries(OpenGLCoreTextureExample PRIVATE
+  osvrRenderManager::osvrRenderManagerCpp
+  freetype
+  GLEW::GLEW
+  SDL2::SDL2
+  ${OPENGL_LIBRARY}
+)
+target_compile_features(OpenGLCoreTextureExample PRIVATE cxx_range_for)
+
+install(TARGETS
+  OpenGLCoreTextureExample
+  RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 
 # Install the sample server configuration files and scripts.
 
