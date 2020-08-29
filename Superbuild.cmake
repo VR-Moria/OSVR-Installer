@@ -78,11 +78,13 @@ ExternalProject_Add( OSVR-RenderManager
     DEPENDS OSVR-Core jsoncpp glew submodule_init sdl2
 )
 
+add_external_project(Freetype vendored/freetype2 OFF "" "" ON)
+
 # Add any local projects that we want to build
 ExternalProject_Add( OSVRInstaller
     SOURCE_DIR ${CMAKE_SOURCE_DIR}
     BUILD_ALWAYS 1
     CMAKE_ARGS ${cmake_common_args}
     INSTALL_DIR ${CMAKE_BINARY_DIR}/INSTALL
-    DEPENDS OSVR-RenderManager
+    DEPENDS OSVR-RenderManager Freetype
 )

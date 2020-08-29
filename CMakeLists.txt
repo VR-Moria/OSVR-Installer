@@ -40,6 +40,11 @@ endif(USE_SUPERBUILD)
 # Build Step
 ############################################################
 
+# Install text-based sample application that shows how to render
+# textured objects in OSVR using OpenGL.
+
+find_package(Freetype CONFIG REQUIRED)
+
 # Install the sample server configuration files and scripts.
 
 install(

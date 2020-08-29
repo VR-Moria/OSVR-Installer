@@ -16,3 +16,6 @@
 [submodule "vendored/sdl2"]
 	path = vendored/sdl2
 	url = https://github.com/ReliaSolve/SDL-mirror.git
+[submodule "vendored/freetype2"]
+	path = vendored/freetype2
+	url = https://github.com/freetype/freetype2.git
