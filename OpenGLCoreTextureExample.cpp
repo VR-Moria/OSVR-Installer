@@ -190,16 +190,7 @@ static SampleShader sampleShader;
 // Things needed for Freetype font display
 FT_Library g_ft = nullptr;
 FT_Face g_face = nullptr;
-#ifdef _WIN32
-  std::vector<const char*> FONTS = {"C:/Windows/Fonts/arial.ttf"};
-#elif defined(__APPLE__)
-  std::vector<const char*> FONTS = {"/System/Library/Fonts/NewYork.ttf"};
-#else
-  std::vector<const char*> FONTS = {
-    "/usr/share/fonts/truetype/ubuntu-font-family/Ubuntu-R.ttf",
-    "/usr/share/fonts/truetype/ubuntu/Ubuntu-R.ttf"
-  };
-#endif
+std::vector<const char*> FONTS = {"./COURIER.TTF"};
 const int FONT_SIZE = 48;
 GLuint g_font_tex = 0;
 GLuint g_on_tex = 0;
@@ -763,7 +754,7 @@ void DrawWorld(
     /// Draw a cube with a 5-meter radius as the room we are floating in.
     roomCube.draw(projectionGL, viewGL);
 
-    if (!render_text(projectionGL, viewGL, "Hello, World", 0,0,-2, 0.006f,0.006f)) {
+    if (!render_text(projectionGL, viewGL, "Hello, World Space", -1,1,-2, 0.004f,0.004f)) {
       quit = true;
     }
 }
