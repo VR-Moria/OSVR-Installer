@@ -80,6 +80,38 @@ ExternalProject_Add( OSVR-RenderManager
 
 add_external_project(Freetype vendored/freetype2 OFF "" "" ON)
 
+set (VRPN_ARGS
+    -DBUILD_TESTING:BOOL=OFF
+    -DVRPN_BUILD_CLIENT_LIBRARY:BOOL=ON
+    -DVRPN_BUILD_SERVER_LIBRARY:BOOL=ON
+    -DVRPN_USE_JOYLIN:BOOL=ON
+    -DVRPN_BUILD_SERVERS:BOOL=ON
+    -DVRPN_BUILD_CLIENTS:BOOL=ON
+    -DVRPN_BUILD_PYTHON:BOOL=OFF
+    -DVRPN_SUBPROJECT_BUILD:BOOL=ON
+    -DVRPN_INSTALL:BOOL=ON
+    -DVRPN_USE_HID:BOOL=ON
+)
+if (WIN32)
+  set (VRPN_ARGS ${VRPN_ARGS}
+    -DVRPN_USE_WINSOCK2:BOOL=ON
+    -DVRPN_USE_JOYLIN:BOOL=OFF
+    -DONCE_SET_CMAKE_INSTALL_PREFIX:BOOL=ON
+  )
+endif ()
+find_package(vrpn CONFIG)
+if (NOT vrpn_FOUND)
+  ExternalProject_Add( vrpn
+      BUILD_ALWAYS 1
+      SOURCE_DIR ${CMAKE_SOURCE_DIR}/vendored/vrpn
+      DOWNLOAD_COMMAND ${GIT_EXECUTABLE} submodule update --init --checkout --recursive ${CMAKE_SOURCE_DIR}/vendored/vrpn
+      DOWNLOAD_DIR ${CMAKE_SOURCE_DIR}
+      CMAKE_ARGS ${cmake_common_args} ${VRPN_ARGS}
+      INSTALL_DIR ${CMAKE_INSTALL_PREFIX}
+      DEPENDS submodule_init
+  )
+endif ()
+
 # Add any local projects that we want to build
 ExternalProject_Add( OSVRInstaller
     SOURCE_DIR ${CMAKE_SOURCE_DIR}
