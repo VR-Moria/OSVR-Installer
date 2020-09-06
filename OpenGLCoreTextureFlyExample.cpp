@@ -35,8 +35,10 @@
 // limitations under the License.
 
 // Internal Includes
-#include <osvr/RenderKit/RenderManager.h>
 #include <osvr/ClientKit/Context.h>
+#include <osvr/ClientKit/Interface.h>
+#include <osvr/ClientKit/InterfaceStateC.h>
+#include <osvr/RenderKit/RenderManager.h>
 #include <quat.h>
 #include <chrono>
 
@@ -824,7 +826,7 @@ int main(int argc, char* argv[])
     // Get an OSVR client context to use to access the devices
     // that we need.
     osvr::clientkit::ClientContext context(
-        "com.osvr.renderManager.openGLExample");
+        "com.reliasolve.OSVR-Installer.OpenGLCoreTextureFlyExample");
 
     // Construct button devices and connect them to a callback
     // that will set the "quit" variable to true when it is
@@ -837,6 +839,19 @@ int main(int argc, char* argv[])
     osvr::clientkit::Interface rightButton1 =
         context.getInterface("/controller/right/1");
     rightButton1.registerCallback(&myButtonCallback, &quit);
+
+    // Construct the analog devices we need to read info
+    // needed for flying.
+    osvr::clientkit::Interface analogTrigger =
+      context.getInterface("/controller/trigger");
+    osvr::clientkit::Interface analogLeftStickX =
+      context.getInterface("/controller/leftStickX");
+    osvr::clientkit::Interface analogLeftStickY =
+      context.getInterface("/controller/leftStickY");
+    osvr::clientkit::Interface analogRightStickX =
+      context.getInterface("/controller/rightStickX");
+    osvr::clientkit::Interface headSpace =
+      context.getInterface("/me/head");
 
     // Open OpenGL and set up the context for rendering to
     // an HMD.  Do this using the OSVR RenderManager interface,
@@ -952,13 +967,136 @@ int main(int argc, char* argv[])
       quit = true;
     }
 
+    // Set up a world-from-room additional transformation that we will
+    // adjust as the user flies around using a joystick.  They always fly
+    // in the local viewing coordinate system.
+    OSVR_PoseState pose;
+    osvrPose3SetIdentity(&pose);
+
+#if 0
+    // Set up any initial offset and orient changes that we want.
+    double X_OFFSET = -48;  //-29
+    double Y_OFFSET = 20;   // 58
+    double Z_OFFSET = 49.5; // 49
+    /*XXX
+    double X_OFFSET = 0;  //-29
+    double Y_OFFSET = 3;   // 58
+    double Z_OFFSET = 5; // 49
+    */
+    pose.translation.data[0] = X_OFFSET;
+    pose.translation.data[1] = Y_OFFSET;
+    pose.translation.data[2] = Z_OFFSET;
+    // Rotate by 90 degrees around X to make Z down
+    pose.rotation.data[0] = 0.7071;
+    pose.rotation.data[1] = 0.7071;
+    q_type initialRotation;
+    initialRotation[Q_X] = osvrQuatGetX(&pose.rotation);
+    initialRotation[Q_Y] = osvrQuatGetY(&pose.rotation);
+    initialRotation[Q_Z] = osvrQuatGetZ(&pose.rotation);
+    initialRotation[Q_W] = osvrQuatGetW(&pose.rotation);
+#endif
+
+    // Keeps track of when we last updated the system
+    // state.
+    OSVR_TimeValue  lastTime;
+    osvrTimeValueGetNow(&lastTime);
+
     // Continue rendering until it is time to quit.
     while (!quit) {
         // Update the context so we get our callbacks called and
         // update tracker state.
         context.update();
 
-        if (!render->Render()) {
+        // Read the current value of the analogs we want
+        OSVR_TimeValue  ignore;
+        OSVR_AnalogState triggerValue = 0;
+        osvrGetAnalogState(analogTrigger.get(), &ignore, &triggerValue);
+        OSVR_AnalogState leftStickXValue = 0;
+        osvrGetAnalogState(analogLeftStickX.get(), &ignore, &leftStickXValue);
+        OSVR_AnalogState leftStickYValue = 0;
+        osvrGetAnalogState(analogLeftStickY.get(), &ignore, &leftStickYValue);
+        OSVR_AnalogState rightStickXValue = 0;
+        osvrGetAnalogState(analogRightStickX.get(), &ignore, &rightStickXValue);
+
+        // Figure out how much to move and in which directions based
+        // on how much time as passed and what the analog values are.
+        const double X_SPEED_SCALE = 3.0;
+        const double Y_SPEED_SCALE = -3.0;  // Y axis on controller is backwards
+        const double Z_SPEED_SCALE = -2.0;
+        const double SPIN_SPEED_SCALE = -Q_PI / 2;  // Want to spin the other way
+        OSVR_TimeValue  now;
+        osvrTimeValueGetNow(&now);
+        OSVR_TimeValue nowCopy = now;
+        osvrTimeValueDifference(&now, &lastTime);
+        lastTime = nowCopy;
+
+        double dt = now.seconds + now.microseconds * 1e-6;
+        double right = dt * leftStickXValue * X_SPEED_SCALE;
+        double forward = dt * leftStickYValue * Y_SPEED_SCALE;
+        double up = dt * triggerValue * Z_SPEED_SCALE;
+        double spin = dt * rightStickXValue * SPIN_SPEED_SCALE;
+
+        // The deltaZ will always point up in world space, but the
+        // motion in X and Y need to be rotated so that X goes in the
+        // direction of forward gaze (-Z) and Y goes to the right (X).
+        // These will be arbitrary 3D locations, so will be added to
+        // all of X, Y, and Z.
+        double deltaX = 0, deltaY = 0, deltaZ = 0;
+        deltaZ += up;
+
+        // Make forward be along -Z in head space.
+        // Remember that room space is rotated w.r.t. world space
+        OSVR_PoseState currentHead;
+        OSVR_ReturnCode ret = osvrGetPoseState(headSpace.get(), &ignore, &currentHead);
+        if (ret == OSVR_RETURN_SUCCESS) {
+
+          // Adjust the rotation by spinning around the vertical axis
+          q_type rot;
+          q_from_axis_angle(rot, 0, 0, 1, spin);
+          q_xyz_quat_type cur_pose;
+          q_from_OSVR(cur_pose, pose);
+          q_mult(cur_pose.quat, rot, cur_pose.quat);
+          q_to_OSVR(pose, cur_pose);
+
+          // Get the current head pose in room space.
+          q_xyz_quat_type poseXform;
+          q_from_OSVR(poseXform, currentHead);
+
+          // Find -Z in world space by catenating the room-to-world
+          // rotation.
+          q_vec_type negZ = { 0, 0, -1 };
+          q_vec_type forwardDir;
+          q_xform(forwardDir, poseXform.quat, negZ);
+          q_xform(forwardDir, cur_pose.quat, forwardDir);
+          q_vec_scale(forwardDir, forward, forwardDir);
+          deltaX += forwardDir[Q_X];
+          deltaY += forwardDir[Q_Y];
+          deltaZ += forwardDir[Q_Z];
+
+          // Make right be along +X in head space.
+          // Remember that room space is rotated w.r.t. world space.
+          q_vec_type X = { 1, 0, 0 };
+          q_vec_type rightDir;
+          q_xform(rightDir, poseXform.quat, X);
+          q_xform(rightDir, cur_pose.quat, rightDir);
+          q_vec_scale(rightDir, right, rightDir);
+          deltaX += rightDir[Q_X];
+          deltaY += rightDir[Q_Y];
+          deltaZ += rightDir[Q_Z];
+
+          // Adjust the roomToWorld pose based on the changes,
+          // unless there was too long of a time between readings.
+          if (dt < 0.5) {
+            pose.translation.data[0] += deltaX;
+            pose.translation.data[1] += deltaY;
+            pose.translation.data[2] += deltaZ;
+          }
+        }
+
+        // Render the scene, sending it the current roomToWorld transform.
+        osvr::renderkit::RenderManager::RenderParams params;
+        params.worldFromRoomAppend = &pose;
+        if (!render->Render(params)) {
             std::cerr
                 << "Render() returned false, maybe because it was asked to quit"
                 << std::endl;
