@@ -90,7 +90,20 @@ install(
     ${CMAKE_CURRENT_SOURCE_DIR}/vendored/OSVR-RenderManager/installer/nondirectmode_window.json
     ${CMAKE_CURRENT_SOURCE_DIR}/nondirectmode_window.bat
     ${CMAKE_CURRENT_SOURCE_DIR}/nondirectmode_window.sh
+    ${CMAKE_CURRENT_SOURCE_DIR}/mono_display_with_xbox.json
+    ${CMAKE_CURRENT_SOURCE_DIR}/mono_oculus_xbox.bat
+    ${CMAKE_CURRENT_SOURCE_DIR}/mono_oculus_xbox.sh
+    ${CMAKE_CURRENT_SOURCE_DIR}/mono_display_with_retrolink.json
+    ${CMAKE_CURRENT_SOURCE_DIR}/mono_oculus_retrolink.bat
+    ${CMAKE_CURRENT_SOURCE_DIR}/mono_oculus_retrolink.sh
+    ${CMAKE_CURRENT_SOURCE_DIR}/Oculus_with_xbox_window.json
+    ${CMAKE_CURRENT_SOURCE_DIR}/window_oculus_xbox.bat
+    ${CMAKE_CURRENT_SOURCE_DIR}/window_oculus_xbox.sh
     ${CMAKE_CURRENT_SOURCE_DIR}/lookabout.vrpn
+    ${CMAKE_CURRENT_SOURCE_DIR}/vrpn_Oculus_Xbox.cfg
+    ${CMAKE_CURRENT_SOURCE_DIR}/vrpn_Oculus_Xbox.sh
+    ${CMAKE_CURRENT_SOURCE_DIR}/vrpn_Oculus_retrolink.cfg
+    ${CMAKE_CURRENT_SOURCE_DIR}/vrpn_Oculus_retrolink.sh
     ${CMAKE_CURRENT_SOURCE_DIR}/nondirectmode_window_lookabout.json
     ${CMAKE_CURRENT_SOURCE_DIR}/nondirectmode_window_lookabout.bat
     ${CMAKE_CURRENT_SOURCE_DIR}/nondirectmode_window_lookabout.sh
