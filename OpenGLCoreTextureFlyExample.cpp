@@ -1036,13 +1036,13 @@ int main(int argc, char* argv[])
         double up = dt * triggerValue * Z_SPEED_SCALE;
         double spin = dt * rightStickXValue * SPIN_SPEED_SCALE;
 
-        // The deltaZ will always point up in world space, but the
+        // The deltaY will always point up in world space, but the
         // motion in X and Y need to be rotated so that X goes in the
         // direction of forward gaze (-Z) and Y goes to the right (X).
         // These will be arbitrary 3D locations, so will be added to
         // all of X, Y, and Z.
         double deltaX = 0, deltaY = 0, deltaZ = 0;
-        deltaZ += up;
+        deltaY += up;
 
         // Make forward be along -Z in head space.
         // Remember that room space is rotated w.r.t. world space
@@ -1050,9 +1050,9 @@ int main(int argc, char* argv[])
         OSVR_ReturnCode ret = osvrGetPoseState(headSpace.get(), &ignore, &currentHead);
         if (ret == OSVR_RETURN_SUCCESS) {
 
-          // Adjust the rotation by spinning around the vertical axis
+          // Adjust the rotation by spinning around the vertical (Y) axis
           q_type rot;
-          q_from_axis_angle(rot, 0, 0, 1, spin);
+          q_from_axis_angle(rot, 0, 1, 0, spin);
           q_xyz_quat_type cur_pose;
           q_from_OSVR(cur_pose, pose);
           q_mult(cur_pose.quat, rot, cur_pose.quat);
