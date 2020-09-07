@@ -37,7 +37,7 @@
 		"leftStickY": "analog/1",
 		"rightStickX": "analog/2",
 		"rightStickY": "analog/3",
-		"trigger": "analog/4"
+		"trigger": "analog/5"
         },
         "automaticAliases": {
                 "/controller": "semantic/*"
