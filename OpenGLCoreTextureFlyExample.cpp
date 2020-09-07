@@ -252,7 +252,7 @@ bool render_text(const GLdouble projection[], const GLdouble modelView[],
 
   // Use the font shader to render this.  It may activate a different texture unit, so we
   // need to make sure we active the first one once we are using the program.
-  //sampleShader.useProgram(projection, modelView);
+  sampleShader.useProgram(projection, modelView);
 
   err = glGetError();
   if (err != GL_NO_ERROR) {
