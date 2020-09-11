@@ -62,8 +62,19 @@
 #include <osvr/RenderKit/GraphicsLibraryOpenGL.h>
 #include <osvr/RenderKit/RenderKitGraphicsTransforms.h>
 
+///
 // normally you'd load the shaders from a file, but in this case, let's
 // just keep things simple and load from memory.
+
+/// @brief This is the OpenGL shader used to transform vertices and send parameters
+///         to the fragment shader.
+/// @param [in] position The 3D coordinate of the vertex
+/// @param [in] vertexColor The color of the vertex (red, green, blue, alpha)
+/// @param [in] vertexTextureCoord Normalized 2D texture coordinates between 0 and 1
+///             This is used to render text onto shapes, but could also be used to
+///             render other textures.
+/// @param [out] fragmentColor The color of the fragment, passed through and interpolated
+/// @param [out] textureCoord The texture coordinates, passed through and interpolated
 static const GLchar* vertexShader =
     "#version 330 core\n"
     "layout(location = 0) in vec3 position;\n"
@@ -80,6 +91,10 @@ static const GLchar* vertexShader =
     "   textureCoord = vertexTextureCoord;\n"
     "}\n";
 
+/// @brief This is the OpenGL shader used to color fragments.
+/// @param [in] tex The texture sampler used to map the texture.  The texture value
+///             multiplied by the fragment color, and alpha is supported, so that
+///             the texture can recolor the fragment and also change its opacity.
 static const GLchar* fragmentShader =
     "#version 330 core\n"
     "in vec4 fragmentColor;\n"
@@ -91,8 +106,13 @@ static const GLchar* fragmentShader =
     "   color = fragmentColor * texture(tex, textureCoord);\n"
     "}\n";
 
+/// @brief Class that wraps all of the things needed to handle OpenGL vertex and fragment shaders.
+///
+/// This class handles compiling and linking the shaders, passing parameters to them, and
+/// making them active for rendering.
 class SampleShader {
   public:
+    /// @brief Constructor must be called after OpenGL is initialized.
     SampleShader() {}
 
     ~SampleShader() {
@@ -101,6 +121,7 @@ class SampleShader {
         }
     }
 
+    /// @brief Must be called before useProgram() is called to initialize the shaders.
     void init() {
         if (!initialized) {
             GLuint vertexShaderId = glCreateShader(GL_VERTEX_SHADER);
@@ -135,6 +156,11 @@ class SampleShader {
         }
     }
 
+    /// @brief Makes the shader active so that the following OpenGL render calls will use it.
+    /// @param [in] projection OpenGL projection matrix to use.  This should be obtained
+    ///             from OSVR.
+    /// @param [in] modelView OpenGL model/view matrix to use.  This should be obtained
+    ///             from OSVR.
     void useProgram(const GLdouble projection[], const GLdouble modelView[]) {
         init();
         glUseProgram(programId);
@@ -202,13 +228,29 @@ GLuint g_fontShader = 0;
 GLuint g_fontVertexBuffer = 0;
 GLuint g_fontVertexArrayId = 0;
 
+/// @brief Structure to hold OpenGL vertex buffer data.
 class FontVertex {
 public:
-  GLfloat pos[3];
-  GLfloat col[4];
-  GLfloat tex[2];
+  GLfloat pos[3];   ///< Location of the vertex
+  GLfloat col[4];   ///< Color of the vertex (red, green, blue, alpha)
+  GLfloat tex[2];   ///< Texture coordinates for the vertex
 };
 
+/// @brief Helper function for render_text.
+/// @param [out] vertexBufferData OpenGL vertex buffer data to be rendered
+///             for a single character of text onto a quadrilateral.
+///
+///   The quadrilateral will be in the X-Y plane whose depth is specified.
+/// It will be axis aligned, with the character reading towards +X with
+/// its top rendered towards +Y.
+///   The quadrilateral is rendered into whatever space is defined by
+/// the projection and model/view transforms being used by the shader.
+///
+/// @param [in] left Furthest left (-x) on the Quadrilateral
+/// @param [in] right Furthest right (+x) on the Quadrilateral
+/// @param [in] left Furthest up (+y) on the Quadrilateral
+/// @param [in] left Furthest down (-y) on the Quadrilateral
+/// @param [in] depth Z value of the quadrilateral.
 static void addFontQuad(std::vector<FontVertex> &vertexBufferData,
   GLfloat left, GLfloat right, GLfloat top, GLfloat bottom, GLfloat depth,
   GLfloat R, GLfloat G, GLfloat B, GLfloat alpha)
@@ -239,6 +281,23 @@ static void addFontQuad(std::vector<FontVertex> &vertexBufferData,
   v.tex[0] = 1; v.tex[1] = 0;
   vertexBufferData.emplace_back(v);
 }
+
+/// @brief Render a string of text into a specified space.
+///
+///   The text will be in the X-Y plane whose z value is specified.
+/// It will be axis aligned, with the text reading towards +X with
+/// its top rendered towards +Y.
+///   The quadrilateral is rendered into whatever space is defined by
+/// the projection and model/view transforms being used by the shader.
+///
+/// @param [in] projection The OpenGL projection matrix to pass to the shader.
+/// @param [in] modelView The OpenGL model/view matrix to pass to the shader.
+/// @param [in] text The null-terminated string of text to be rendered.
+/// @param [in] x Coordinates of the center of the text.
+/// @param [in] y Coordinates of the center of the text.
+/// @param [in] z Coordinates of the center of the text.
+/// @param [in] sx Spacing for the text in x.
+/// @param [in] sy Spacing for the text in y.
 
 bool render_text(const GLdouble projection[], const GLdouble modelView[],
     const char *text, float x, float y, float z, float sx, float sy)
@@ -410,10 +469,14 @@ bool render_text(const GLdouble projection[], const GLdouble modelView[],
   return true;
 }
 
+/// @brief Class to handle creating and rendering a cube in OpenGL.
 class Cube {
   public:
+    /// @brief Constructor for the cube.  Must be called after OpenGL is initialized.
+    /// @param [in] scale Size of one face of the cube in meters.
     Cube(GLfloat scale) {
-        colorBufferData = {1.0, 0.0, 0.0, // +X
+      /// @brief Colors for each vertex in the cube
+      colorBufferData = {1.0, 0.0, 0.0, // +X
                            1.0, 0.0, 0.0, 1.0, 0.0, 0.0,
 
                            1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0,
@@ -443,7 +506,8 @@ class Cube {
 
                            0.0, 1.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 1.0};
 
-        vertexBufferData = {scale,  scale,  scale, // +X
+      /// @brief Locations for each vertex in the cube
+      vertexBufferData = {scale,  scale,  scale, // +X
                             scale,  -scale, -scale, scale,  scale,  -scale,
 
                             scale,  -scale, -scale, scale,  scale,  scale,
@@ -487,6 +551,7 @@ class Cube {
         }
     }
 
+    /// @brief Must be called before draw() can be used.
     void init() {
         if (!initialized) {
             // Vertex buffer
@@ -525,6 +590,9 @@ class Cube {
         }
     }
 
+    /// @brief Render the cube in the specified space.
+    /// @param [in] projection The OpenGL projection matrix to pass to the shader.
+    /// @param [in] modelView The OpenGL model/view matrix to pass to the shader.
     void draw(const GLdouble projection[], const GLdouble modelView[]) {
         init();
 
@@ -669,7 +737,10 @@ void SetupEye(
       static_cast<GLint>(viewport.height));
 }
 
-// Callbacks to draw things in world space.
+/// @brief Callback to draw things in world space.
+///
+/// Edit this function to draw things in the world, which will remain in place
+/// while the viewpoint is changed and the user flies around the world.
 void DrawWorld(
     void* userData //< Passed into AddRenderCallback
     , osvr::renderkit::GraphicsLibrary library //< Graphics library context to use
@@ -713,6 +784,8 @@ void DrawWorld(
     }
 }
 
+/// @brief Callback to draw things in head space.
+///
 // This can be used to draw a heads-up display.  Unlike in a non-VR game,
 // this can't be drawn in screen space because it has to be at a consistent
 // location for stereo viewing through potentially-distorted and offset lenses
@@ -1007,6 +1080,9 @@ int main(int argc, char* argv[])
         // update tracker state.
         context.update();
 
+        //==========================================================================
+        // This section handles flying the user around based on the analog inputs.
+
         // Read the current value of the analogs we want
         OSVR_TimeValue  ignore;
         OSVR_AnalogState triggerValue = 0;
@@ -1093,7 +1169,9 @@ int main(int argc, char* argv[])
           }
         }
 
-        // Render the scene, sending it the current roomToWorld transform.
+        //==========================================================================
+        // Render the scene, sending it the current roomToWorld transform that
+        // tells it about how we are flying.
         osvr::renderkit::RenderManager::RenderParams params;
         params.worldFromRoomAppend = &pose;
         if (!render->Render(params)) {
