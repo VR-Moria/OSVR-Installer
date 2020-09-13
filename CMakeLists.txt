@@ -53,9 +53,6 @@ osvrrm_find_GLEW()
 find_package(OpenGL REQUIRED)
 find_package(Freetype CONFIG REQUIRED)
 add_executable(OpenGLCoreTextureExample OpenGLCoreTextureExample.cpp)
-#target_include_directories(OpenGLCoreTextureExample PRIVATE
-#  ${CMAKE_INSTALL_INCUDEDIR}
-#)
 target_link_libraries(OpenGLCoreTextureExample PRIVATE
   osvrRenderManager::osvrRenderManagerCpp
   freetype
@@ -65,8 +62,25 @@ target_link_libraries(OpenGLCoreTextureExample PRIVATE
 )
 target_compile_features(OpenGLCoreTextureExample PRIVATE cxx_range_for)
 
-message(info "XXX CMAKE_INSTALL_BINDER = ${CMAKE_INSTALL_BINDIR}")
 install(TARGETS OpenGLCoreTextureExample
+  DESTINATION bin)
+
+find_package(quatlib REQUIRED)
+add_executable(OpenGLCoreTextureFlyExample OpenGLCoreTextureFlyExample.cpp)
+target_include_directories(OpenGLCoreTextureFlyExample PRIVATE
+  ${QUATLIB_INCLUDE_DIRS}
+)
+target_link_libraries(OpenGLCoreTextureFlyExample PRIVATE
+  osvrRenderManager::osvrRenderManagerCpp
+  freetype
+  GLEW::GLEW
+  SDL2::SDL2
+  ${OPENGL_LIBRARY}
+  ${QUATLIB_LIBRARIES}
+)
+target_compile_features(OpenGLCoreTextureFlyExample PRIVATE cxx_range_for)
+
+install(TARGETS OpenGLCoreTextureFlyExample
   DESTINATION bin)
 
 # Install the sample server configuration files and scripts.
@@ -76,7 +90,20 @@ install(
     ${CMAKE_CURRENT_SOURCE_DIR}/vendored/OSVR-RenderManager/installer/nondirectmode_window.json
     ${CMAKE_CURRENT_SOURCE_DIR}/nondirectmode_window.bat
     ${CMAKE_CURRENT_SOURCE_DIR}/nondirectmode_window.sh
+    ${CMAKE_CURRENT_SOURCE_DIR}/mono_display_with_xbox.json
+    ${CMAKE_CURRENT_SOURCE_DIR}/mono_oculus_xbox.bat
+    ${CMAKE_CURRENT_SOURCE_DIR}/mono_oculus_xbox.sh
+    ${CMAKE_CURRENT_SOURCE_DIR}/mono_display_with_retrolink.json
+    ${CMAKE_CURRENT_SOURCE_DIR}/mono_oculus_retrolink.bat
+    ${CMAKE_CURRENT_SOURCE_DIR}/mono_oculus_retrolink.sh
+    ${CMAKE_CURRENT_SOURCE_DIR}/Oculus_with_xbox_window.json
+    ${CMAKE_CURRENT_SOURCE_DIR}/window_oculus_xbox.bat
+    ${CMAKE_CURRENT_SOURCE_DIR}/window_oculus_xbox.sh
     ${CMAKE_CURRENT_SOURCE_DIR}/lookabout.vrpn
+    ${CMAKE_CURRENT_SOURCE_DIR}/vrpn_Oculus_Xbox.cfg
+    ${CMAKE_CURRENT_SOURCE_DIR}/vrpn_Oculus_Xbox.sh
+    ${CMAKE_CURRENT_SOURCE_DIR}/vrpn_Oculus_retrolink.cfg
+    ${CMAKE_CURRENT_SOURCE_DIR}/vrpn_Oculus_retrolink.sh
     ${CMAKE_CURRENT_SOURCE_DIR}/nondirectmode_window_lookabout.json
     ${CMAKE_CURRENT_SOURCE_DIR}/nondirectmode_window_lookabout.bat
     ${CMAKE_CURRENT_SOURCE_DIR}/nondirectmode_window_lookabout.sh

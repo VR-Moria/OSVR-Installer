@@ -19,3 +19,6 @@
 [submodule "vendored/freetype2"]
 	path = vendored/freetype2
 	url = https://github.com/freetype/freetype2.git
+[submodule "vendored/vrpn"]
+	path = vendored/vrpn
+	url = https://github.com/vrpn/vrpn
