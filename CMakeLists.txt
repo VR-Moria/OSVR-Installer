@@ -52,6 +52,8 @@ osvrrm_find_SDL2()
 osvrrm_find_GLEW()
 find_package(OpenGL REQUIRED)
 find_package(Freetype CONFIG REQUIRED)
+
+#add openGlCoreTextureExample
 add_executable(OpenGLCoreTextureExample OpenGLCoreTextureExample.cpp)
 target_link_libraries(OpenGLCoreTextureExample PRIVATE
   osvrRenderManager::osvrRenderManagerCpp
@@ -65,6 +67,8 @@ target_compile_features(OpenGLCoreTextureExample PRIVATE cxx_range_for)
 install(TARGETS OpenGLCoreTextureExample
   DESTINATION bin)
 
+
+#add fly example
 find_package(quatlib REQUIRED)
 add_executable(OpenGLCoreTextureFlyExample OpenGLCoreTextureFlyExample.cpp)
 target_include_directories(OpenGLCoreTextureFlyExample PRIVATE
@@ -82,6 +86,27 @@ target_compile_features(OpenGLCoreTextureFlyExample PRIVATE cxx_range_for)
 
 install(TARGETS OpenGLCoreTextureFlyExample
   DESTINATION bin)
+
+
+#add bryce test
+find_package(quatlib REQUIRED)
+add_executable(bryceTest1 bryceTest1.cpp)
+target_include_directories(bryceTest1 PRIVATE
+  ${QUATLIB_INCLUDE_DIRS}
+)
+target_link_libraries(bryceTest1 PRIVATE
+  osvrRenderManager::osvrRenderManagerCpp
+  freetype
+  GLEW::GLEW
+  SDL2::SDL2
+  ${OPENGL_LIBRARY}
+  ${QUATLIB_LIBRARIES}
+)
+target_compile_features(bryceTest1 PRIVATE cxx_range_for)
+
+install(TARGETS bryceTest1
+  DESTINATION bin)
+
 
 # Install the sample server configuration files and scripts.
 
