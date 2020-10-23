@@ -239,7 +239,7 @@ void DrawWorld(
     //carriage return at every newline
     std::ifstream ifs;
     // std::cerr << "attempting to open text file\n";
-    ifs.open ("C:\\Users\\bkoester\\Documents\\COMP523\\OSVR\\OSVR-Installer\\vendored\\OSVR-RenderManager\\examples\\test.txt", std::ifstream::in);
+    ifs.open ("test.txt", std::ifstream::in);
     if (ifs.is_open()) {
         // std::cerr << "opened file\n";
     } else {
