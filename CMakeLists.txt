@@ -107,6 +107,24 @@ target_compile_features(bryceTest1 PRIVATE cxx_range_for)
 install(TARGETS bryceTest1
   DESTINATION bin)
 
+#add mapDraw
+find_package(quatlib REQUIRED)
+add_executable(mapDraw mapDraw.cpp)
+target_include_directories(mapDraw PRIVATE
+  ${QUATLIB_INCLUDE_DIRS}
+)
+target_link_libraries(mapDraw PRIVATE
+  osvrRenderManager::osvrRenderManagerCpp
+  freetype
+  GLEW::GLEW
+  SDL2::SDL2
+  ${OPENGL_LIBRARY}
+  ${QUATLIB_LIBRARIES}
+)
+target_compile_features(mapDraw PRIVATE cxx_range_for)
+
+install(TARGETS mapDraw
+  DESTINATION bin)
 
 # Install the sample server configuration files and scripts.
 
