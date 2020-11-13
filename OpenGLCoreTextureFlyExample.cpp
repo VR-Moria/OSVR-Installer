@@ -62,7 +62,6 @@
 #include <osvr/RenderKit/GraphicsLibraryOpenGL.h>
 #include <osvr/RenderKit/RenderKitGraphicsTransforms.h>
 
-
 ///
 // normally you'd load the shaders from a file, but in this case, let's
 // just keep things simple and load from memory.
@@ -91,6 +90,7 @@ static const GLchar* vertexShader =
     "   fragmentColor = vertexColor;\n"
     "   textureCoord = vertexTextureCoord;\n"
     "}\n";
+static enum Plane {XY, XZ, YZ};
 
 /// @brief This is the OpenGL shader used to color fragments.
 /// @param [in] tex The texture sampler used to map the texture.  The texture value
@@ -232,7 +232,7 @@ GLuint g_fontVertexArrayId = 0;
 /// @brief Structure to hold OpenGL vertex buffer data.
 class FontVertex {
 public:
-  GLfloat pos[3];   ///< Location of the vertex
+  GLfloat pos[3];   ///< Location of the vertexre
   GLfloat col[4];   ///< Color of the vertex (red, green, blue, alpha)
   GLfloat tex[2];   ///< Texture coordinates for the vertex
 };
@@ -283,6 +283,68 @@ static void addFontQuad(std::vector<FontVertex> &vertexBufferData,
   vertexBufferData.emplace_back(v);
 }
 
+static void addFontQuadXZ(std::vector<FontVertex>& vertexBufferData,
+    GLfloat left, GLfloat right, GLfloat y, GLfloat maxZ, GLfloat minZ,
+    GLfloat R, GLfloat G, GLfloat B, GLfloat alpha)
+{
+    FontVertex v;
+    v.col[0] = R; v.col[1] = G; v.col[2] = B; v.col[3] = alpha;
+
+    // Invert the Y texture coordinate so that we draw the textures
+    // right-side up.
+    // Switch the order so we have clockwise front-facing.
+    v.pos[0] = left; v.pos[1] = y; v.pos[2] = minZ;
+    v.tex[0] = 0; v.tex[1] = 1;
+    vertexBufferData.emplace_back(v);
+    v.pos[0] = right; v.pos[1] = y; v.pos[2] = maxZ;
+    v.tex[0] = 1; v.tex[1] = 0;
+    vertexBufferData.emplace_back(v);
+    v.pos[0] = right; v.pos[1] = y; v.pos[2] = minZ;
+    v.tex[0] = 1; v.tex[1] = 1;
+    vertexBufferData.emplace_back(v);
+
+    v.pos[0] = left; v.pos[1] = y; v.pos[2] = minZ;
+    v.tex[0] = 0; v.tex[1] = 1;
+    vertexBufferData.emplace_back(v);
+    v.pos[0] = left; v.pos[1] = y; v.pos[2] = maxZ;
+    v.tex[0] = 0; v.tex[1] = 0;
+    vertexBufferData.emplace_back(v);
+    v.pos[0] = right; v.pos[1] = y; v.pos[2] = maxZ;
+    v.tex[0] = 1; v.tex[1] = 0;
+    vertexBufferData.emplace_back(v);
+}
+
+static void addFontQuadYZ(std::vector<FontVertex>& vertexBufferData,
+    GLfloat x, GLfloat top, GLfloat bot, GLfloat maxZ, GLfloat minZ,
+    GLfloat R, GLfloat G, GLfloat B, GLfloat alpha)
+{
+    FontVertex v;
+    v.col[0] = R; v.col[1] = G; v.col[2] = B; v.col[3] = alpha;
+
+    // Invert the Y texture coordinate so that we draw the textures
+    // right-side up.
+    // Switch the order so we have clockwise front-facing.
+    v.pos[0] = x; v.pos[1] = bot; v.pos[2] = minZ;
+    v.tex[0] = 0; v.tex[1] = 1;
+    vertexBufferData.emplace_back(v);
+    v.pos[0] = x; v.pos[1] = top; v.pos[2] = maxZ;
+    v.tex[0] = 1; v.tex[1] = 0;
+    vertexBufferData.emplace_back(v);
+    v.pos[0] = x; v.pos[1] = bot; v.pos[2] = maxZ;
+    v.tex[0] = 1; v.tex[1] = 1;
+    vertexBufferData.emplace_back(v);
+
+    v.pos[0] = x; v.pos[1] = bot; v.pos[2] = minZ;
+    v.tex[0] = 0; v.tex[1] = 1;
+    vertexBufferData.emplace_back(v);
+    v.pos[0] = x; v.pos[1] = top; v.pos[2] = minZ;
+    v.tex[0] = 0; v.tex[1] = 0;
+    vertexBufferData.emplace_back(v);
+    v.pos[0] = x; v.pos[1] = top; v.pos[2] = maxZ;
+    v.tex[0] = 1; v.tex[1] = 0;
+    vertexBufferData.emplace_back(v);
+}
+
 /// @brief Render a string of text into a specified space.
 ///
 ///   The text will be in the X-Y plane whose z value is specified.
@@ -301,7 +363,7 @@ static void addFontQuad(std::vector<FontVertex> &vertexBufferData,
 /// @param [in] sy Spacing for the text in y.
 
 bool render_text(const GLdouble projection[], const GLdouble modelView[],
-    const char *text, float x, float y, float z, float sx, float sy)
+    const char *text, float x, float y, float z, float sx, float sy, Plane p)
 {
   if (!g_face) {
     std::cerr << "render_text(): No face" << std::endl;
@@ -407,14 +469,48 @@ bool render_text(const GLdouble projection[], const GLdouble modelView[],
       return false;
     }
 
+    
+    switch (p) {
+    case XY : 
+        float x2 = x + g->bitmap_left * sx;
+        float y2 = y + g->bitmap_top * sy;
+        float w = g->bitmap.width * sx;
+        float h = g->bitmap.rows * sy;
+        // Blend in the text, fully opaque (inverse alpha) and fully white.
+        vertexBufferData.clear();
+        addFontQuad(vertexBufferData, x2, x2 + w, y2, y2 - h, z, 1,1,1,0);
+        break;
+    case XZ :
+        float x2 = x + g->bitmap_left * sx;
+        float z2 = z + g->bitmap_top * sy;
+        float w = g->bitmap.width * sx;
+        float h = g->bitmap.rows * sy;
+        // Blend in the text, fully opaque (inverse alpha) and fully white.
+        vertexBufferData.clear();
+        addFontQuadXZ(vertexBufferData, x2, x2 + w, y, z2, z2 - h, 1, 1, 1, 0);
+        break;
+    case YZ : 
+        float z2 = z + g->bitmap_left * sx;
+        float y2 = y + g->bitmap_top * sy;
+        float w = g->bitmap.width * sx;
+        float h = g->bitmap.rows * sy;
+        // Blend in the text, fully opaque (inverse alpha) and fully white.
+        vertexBufferData.clear();
+        addFontQuadYZ(vertexBufferData, x, y2, y2-h, z2+w, z2, 1, 1, 1, 0);
+        break;
+    }
+
     float x2 = x + g->bitmap_left * sx;
     float y2 = y + g->bitmap_top * sy;
     float w = g->bitmap.width * sx;
     float h = g->bitmap.rows * sy;
 
+    float z2 = z + g->bitmap_top * sy;
+
     // Blend in the text, fully opaque (inverse alpha) and fully white.
     vertexBufferData.clear();
-    addFontQuad(vertexBufferData, x2, x2 + w, y2, y2 - h, z, 1,1,1,0);
+    //addFontQuad(vertexBufferData, x2, x2 + w, y2, y2 - h, z, 1,1,1,0);
+    addFontQuadXZ(vertexBufferData, x2, x2+w, y, z2, z2-h, 1, 1, 1, 0);
     glBindBuffer(GL_ARRAY_BUFFER, g_fontVertexBuffer);
     glBufferData(GL_ARRAY_BUFFER,
       sizeof(vertexBufferData[0]) * vertexBufferData.size(),
@@ -651,139 +747,160 @@ static BOOL CtrlHandler(DWORD fdwCtrlType)
 // This callback sets a boolean value whose pointer is passed in to
 // the state of the button that was pressed.  This lets the callback
 // be used to handle any button press that just needs to update state.
-//void myButtonCallback(void* userdata, const OSVR_TimeValue* /*timestamp*/,
-//                      const OSVR_ButtonReport* report)
-//{
-//    bool* result = static_cast<bool*>(userdata);
-//    *result = (report->state != 0);
-//}
+void myButtonCallback(void* userdata, const OSVR_TimeValue* /*timestamp*/,
+                      const OSVR_ButtonReport* report)
+{
+    bool* result = static_cast<bool*>(userdata);
+    *result = (report->state != 0);
+}
 
-//bool SetupRendering(osvr::renderkit::GraphicsLibrary library)
-//{
-//    // Make sure our pointers are filled in correctly.
-//    if (library.OpenGL == nullptr) {
-//        std::cerr << "SetupRendering: No OpenGL GraphicsLibrary, this should "
-//                     "not happen"
-//                  << std::endl;
-//        return false;
-//    }
-//
-//    osvr::renderkit::GraphicsLibraryOpenGL* glLibrary = library.OpenGL;
-//
-//    // Turn on depth testing, so we get correct ordering.
-//    glEnable(GL_DEPTH_TEST);
-//    glDepthFunc(GL_LESS);
-//    return true;
-//}
+bool SetupRendering(osvr::renderkit::GraphicsLibrary library)
+{
+    // Make sure our pointers are filled in correctly.
+    if (library.OpenGL == nullptr) {
+        std::cerr << "SetupRendering: No OpenGL GraphicsLibrary, this should "
+                     "not happen"
+                  << std::endl;
+        return false;
+    }
+
+    osvr::renderkit::GraphicsLibraryOpenGL* glLibrary = library.OpenGL;
+
+    // Turn on depth testing, so we get correct ordering.
+    glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_LESS);
+    return true;
+}
 
 // Callback to set up a given display, which may have one or more eyes in it
-//void SetupDisplay(
-//    void* userData //< Passed into SetDisplayCallback
-//    , osvr::renderkit::GraphicsLibrary library //< Graphics library context to use
-//    , osvr::renderkit::RenderBuffer buffers //< Buffers to use
-//    )
-//{
-//    // Make sure our pointers are filled in correctly.  The config file selects
-//    // the graphics library to use, and may not match our needs.
-//    if (library.OpenGL == nullptr) {
-//        std::cerr
-//            << "SetupDisplay: No OpenGL GraphicsLibrary, this should not happen"
-//            << std::endl;
-//        return;
-//    }
-//    if (buffers.OpenGL == nullptr) {
-//        std::cerr
-//            << "SetupDisplay: No OpenGL RenderBuffer, this should not happen"
-//            << std::endl;
-//        return;
-//    }
-//
-//    osvr::renderkit::GraphicsLibraryOpenGL* glLibrary = library.OpenGL;
-//
-//    // Clear the screen to black and clear depth
-//    glClearColor(0, 0, 0, 1.0f);
-//    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-//}
+void SetupDisplay(
+    void* userData //< Passed into SetDisplayCallback
+    , osvr::renderkit::GraphicsLibrary library //< Graphics library context to use
+    , osvr::renderkit::RenderBuffer buffers //< Buffers to use
+    )
+{
+    // Make sure our pointers are filled in correctly.  The config file selects
+    // the graphics library to use, and may not match our needs.
+    if (library.OpenGL == nullptr) {
+        std::cerr
+            << "SetupDisplay: No OpenGL GraphicsLibrary, this should not happen"
+            << std::endl;
+        return;
+    }
+    if (buffers.OpenGL == nullptr) {
+        std::cerr
+            << "SetupDisplay: No OpenGL RenderBuffer, this should not happen"
+            << std::endl;
+        return;
+    }
+
+    osvr::renderkit::GraphicsLibraryOpenGL* glLibrary = library.OpenGL;
+
+    // Clear the screen to black and clear depth
+    glClearColor(0, 0, 0, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+}
 
 // Callback to set up for rendering into a given eye (viewpoint and projection).
-//void SetupEye(
-//    void* userData //< Passed into SetViewProjectionCallback
-//    , osvr::renderkit::GraphicsLibrary library //< Graphics library context to use
-//    , osvr::renderkit::RenderBuffer buffers //< Buffers to use
-//    , osvr::renderkit::OSVR_ViewportDescription
-//        viewport //< Viewport set by RenderManager
-//    , osvr::renderkit::OSVR_ProjectionMatrix
-//        projection //< Projection matrix set by RenderManager
-//    , size_t whichEye //< Which eye are we setting up for?
-//    )
-//{
-//    // Make sure our pointers are filled in correctly.  The config file selects
-//    // the graphics library to use, and may not match our needs.
-//    if (library.OpenGL == nullptr) {
-//        std::cerr
-//            << "SetupEye: No OpenGL GraphicsLibrary, this should not happen"
-//            << std::endl;
-//        return;
-//    }
-//    if (buffers.OpenGL == nullptr) {
-//        std::cerr << "SetupEye: No OpenGL RenderBuffer, this should not happen"
-//                  << std::endl;
-//        return;
-//    }
-//
-//    // Set the viewport
-//    glViewport(static_cast<GLint>(viewport.left),
-//      static_cast<GLint>(viewport.lower),
-//      static_cast<GLint>(viewport.width),
-//      static_cast<GLint>(viewport.height));
-//}
+void SetupEye(
+    void* userData //< Passed into SetViewProjectionCallback
+    , osvr::renderkit::GraphicsLibrary library //< Graphics library context to use
+    , osvr::renderkit::RenderBuffer buffers //< Buffers to use
+    , osvr::renderkit::OSVR_ViewportDescription
+        viewport //< Viewport set by RenderManager
+    , osvr::renderkit::OSVR_ProjectionMatrix
+        projection //< Projection matrix set by RenderManager
+    , size_t whichEye //< Which eye are we setting up for?
+    )
+{
+    // Make sure our pointers are filled in correctly.  The config file selects
+    // the graphics library to use, and may not match our needs.
+    if (library.OpenGL == nullptr) {
+        std::cerr
+            << "SetupEye: No OpenGL GraphicsLibrary, this should not happen"
+            << std::endl;
+        return;
+    }
+    if (buffers.OpenGL == nullptr) {
+        std::cerr << "SetupEye: No OpenGL RenderBuffer, this should not happen"
+                  << std::endl;
+        return;
+    }
+
+    // Set the viewport
+    glViewport(static_cast<GLint>(viewport.left),
+      static_cast<GLint>(viewport.lower),
+      static_cast<GLint>(viewport.width),
+      static_cast<GLint>(viewport.height));
+}
 
 /// @brief Callback to draw things in world space.
 ///
 /// Edit this function to draw things in the world, which will remain in place
 /// while the viewpoint is changed and the user flies around the world.
-//void DrawWorld(
-//    void* userData //< Passed into AddRenderCallback
-//    , osvr::renderkit::GraphicsLibrary library //< Graphics library context to use
-//    , osvr::renderkit::RenderBuffer buffers //< Buffers to use
-//    , osvr::renderkit::OSVR_ViewportDescription
-//        viewport //< Viewport we're rendering into
-//    , OSVR_PoseState pose //< OSVR ModelView matrix set by RenderManager
-//    , osvr::renderkit::OSVR_ProjectionMatrix
-//        projection //< Projection matrix set by RenderManager
-//    , OSVR_TimeValue deadline //< When the frame should be sent to the screen
-//    )
-//{
-//    // Make sure our pointers are filled in correctly.  The config file selects
-//    // the graphics library to use, and may not match our needs.
-//    if (library.OpenGL == nullptr) {
-//        std::cerr
-//            << "DrawWorld: No OpenGL GraphicsLibrary, this should not happen"
-//            << std::endl;
-//        return;
-//    }
-//    if (buffers.OpenGL == nullptr) {
-//        std::cerr << "DrawWorld: No OpenGL RenderBuffer, this should not happen"
-//                  << std::endl;
-//        return;
-//    }
-//
-//    osvr::renderkit::GraphicsLibraryOpenGL* glLibrary = library.OpenGL;
-//
-//    GLdouble projectionGL[16];
-//    osvr::renderkit::OSVR_Projection_to_OpenGL(projectionGL, projection);
-//
-//    GLdouble viewGL[16];
-//    osvr::renderkit::OSVR_PoseState_to_OpenGL(viewGL, pose);
-//
-//    /// Draw a cube with a 5-meter radius as the room we are floating in.
-//    glBindTexture(GL_TEXTURE_2D, g_on_tex);
-//    roomCube.draw(projectionGL, viewGL);
-//
-//    if (!render_text(projectionGL, viewGL, "Hello, World Space", -1,1,-2, 0.004f,0.004f)) {
-//      quit = true;
-//    }
-//}
+void DrawWorld(
+    void* userData //< Passed into AddRenderCallback
+    , osvr::renderkit::GraphicsLibrary library //< Graphics library context to use
+    , osvr::renderkit::RenderBuffer buffers //< Buffers to use
+    , osvr::renderkit::OSVR_ViewportDescription
+        viewport //< Viewport we're rendering into
+    , OSVR_PoseState pose //< OSVR ModelView matrix set by RenderManager
+    , osvr::renderkit::OSVR_ProjectionMatrix
+        projection //< Projection matrix set by RenderManager
+    , OSVR_TimeValue deadline //< When the frame should be sent to the screen
+    )
+{
+    // Make sure our pointers are filled in correctly.  The config file selects
+    // the graphics library to use, and may not match our needs.
+    if (library.OpenGL == nullptr) {
+        std::cerr
+            << "DrawWorld: No OpenGL GraphicsLibrary, this should not happen"
+            << std::endl;
+        return;
+    }
+    if (buffers.OpenGL == nullptr) {
+        std::cerr << "DrawWorld: No OpenGL RenderBuffer, this should not happen"
+                  << std::endl;
+        return;
+    }
+
+    osvr::renderkit::GraphicsLibraryOpenGL* glLibrary = library.OpenGL;
+
+    GLdouble projectionGL[16];
+    osvr::renderkit::OSVR_Projection_to_OpenGL(projectionGL, projection);
+
+    GLdouble viewGL[16];
+    osvr::renderkit::OSVR_PoseState_to_OpenGL(viewGL, pose);
+
+    /// Draw a cube with a 5-meter radius as the room we are floating in.
+    glBindTexture(GL_TEXTURE_2D, g_on_tex);
+    //roomCube.draw(projectionGL, viewGL);
+
+    Plane xy = XY; Plane xz = XZ; Plane yz = YZ;
+
+    if (!render_text(projectionGL, viewGL, "#", -5,-2,-5, 0.1f, 0.1f, xy)) {
+      quit = true;
+    }
+    if (!render_text(projectionGL, viewGL, "#", -5, -2, 5, 0.1f, 0.1f,xz)) {
+        quit = true;
+    }
+    if (!render_text(projectionGL, viewGL, "#", 5, -2, -5, 0.01f, 0.01f,xy)) {
+        quit = true;
+    }
+    if (!render_text(projectionGL, viewGL, "#", 5, -2, 5, 0.1f, 0.1f, xy)) {
+        quit = true;
+    }
+    if (!render_text(projectionGL, viewGL, "#", 5, -2, 5, 0.1f, 0.1f,xz)) {
+        quit = true;
+    }
+    if (!render_text(projectionGL, viewGL, "#", 5, -2, 5, 0.1f, 0.1f,yz)) {
+        quit = true;
+    }
+}
+
+
+
+
 
 /// @brief Callback to draw things in head space.
 ///
@@ -792,84 +909,84 @@ static BOOL CtrlHandler(DWORD fdwCtrlType)
 // location for stereo viewing through potentially-distorted and offset lenses
 // from the HMD.  This example uses a small cube drawn in front of us.
 // NOTE: For a fixed-display set-up, you do want to draw in screen space.
-//void DrawHead(
-//  void* userData //< Passed into AddRenderCallback
-//  , osvr::renderkit::GraphicsLibrary library //< Graphics library context to use
-//  , osvr::renderkit::RenderBuffer buffers //< Buffers to use
-//  , osvr::renderkit::OSVR_ViewportDescription
-//  viewport //< Viewport we're rendering into
-//  , OSVR_PoseState pose //< OSVR ModelView matrix set by RenderManager
-//  , osvr::renderkit::OSVR_ProjectionMatrix
-//  projection //< Projection matrix set by RenderManager
-//  , OSVR_TimeValue deadline //< When the frame should be sent to the screen
-//) {
-//  // Make sure our pointers are filled in correctly.  The config file selects
-//  // the graphics library to use, and may not match our needs.
-//  if (library.OpenGL == nullptr) {
-//    std::cerr
-//      << "DrawWorld: No OpenGL GraphicsLibrary, this should not happen"
-//      << std::endl;
-//    return;
-//  }
-//  if (buffers.OpenGL == nullptr) {
-//    std::cerr << "DrawWorld: No OpenGL RenderBuffer, this should not happen"
-//      << std::endl;
-//    return;
-//  }
-//
-//  osvr::renderkit::GraphicsLibraryOpenGL* glLibrary = library.OpenGL;
-//
-//  GLdouble projectionGL[16];
-//  osvr::renderkit::OSVR_Projection_to_OpenGL(projectionGL, projection);
-//
-//  GLdouble viewGL[16];
-//  osvr::renderkit::OSVR_PoseState_to_OpenGL(viewGL, pose);
-//
-//  // Draw some text in front of us.
-//  glBindTexture(GL_TEXTURE_2D, g_on_tex);
-//  if (!render_text(projectionGL, viewGL, "Hello, Head Space", -1,0,-2, 0.003f,0.003f)) {
-//    quit = true;
-//  }
-//}
+void DrawHead(
+  void* userData //< Passed into AddRenderCallback
+  , osvr::renderkit::GraphicsLibrary library //< Graphics library context to use
+  , osvr::renderkit::RenderBuffer buffers //< Buffers to use
+  , osvr::renderkit::OSVR_ViewportDescription
+  viewport //< Viewport we're rendering into
+  , OSVR_PoseState pose //< OSVR ModelView matrix set by RenderManager
+  , osvr::renderkit::OSVR_ProjectionMatrix
+  projection //< Projection matrix set by RenderManager
+  , OSVR_TimeValue deadline //< When the frame should be sent to the screen
+) {
+  // Make sure our pointers are filled in correctly.  The config file selects
+  // the graphics library to use, and may not match our needs.
+  if (library.OpenGL == nullptr) {
+    std::cerr
+      << "DrawWorld: No OpenGL GraphicsLibrary, this should not happen"
+      << std::endl;
+    return;
+  }
+  if (buffers.OpenGL == nullptr) {
+    std::cerr << "DrawWorld: No OpenGL RenderBuffer, this should not happen"
+      << std::endl;
+    return;
+  }
+
+  osvr::renderkit::GraphicsLibraryOpenGL* glLibrary = library.OpenGL;
+
+  GLdouble projectionGL[16];
+  osvr::renderkit::OSVR_Projection_to_OpenGL(projectionGL, projection);
+
+  GLdouble viewGL[16];
+  osvr::renderkit::OSVR_PoseState_to_OpenGL(viewGL, pose);
+
+  // Draw some text in front of us.
+  glBindTexture(GL_TEXTURE_2D, g_on_tex);
+  if (!render_text(projectionGL, viewGL, "Hello, Head Space", -1,0,-2, 0.003f,0.003f)) {
+    quit = true;
+  }
+}
 
 // This is used to draw both hands, but a different callback could be
 // provided for each hand if desired.
-//void DrawHand(
-//    void* userData //< Passed into AddRenderCallback
-//    , osvr::renderkit::GraphicsLibrary library //< Graphics library context to use
-//    , osvr::renderkit::RenderBuffer buffers //< Buffers to use
-//    , osvr::renderkit::OSVR_ViewportDescription
-//        viewport //< Viewport we're rendering into
-//    , OSVR_PoseState pose //< OSVR ModelView matrix set by RenderManager
-//    , osvr::renderkit::OSVR_ProjectionMatrix
-//        projection //< Projection matrix set by RenderManager
-//    , OSVR_TimeValue deadline //< When the frame should be sent to the screen
-//    ) {
-//    // Make sure our pointers are filled in correctly.  The config file selects
-//    // the graphics library to use, and may not match our needs.
-//    if (library.OpenGL == nullptr)
-//{
-//        std::cerr
-//            << "DrawHand: No OpenGL GraphicsLibrary, this should not happen"
-//            << std::endl;
-//        return;
-//    }
-//    if (buffers.OpenGL == nullptr) {
-//        std::cerr << "DrawHand: No OpenGL RenderBuffer, this should not happen"
-//                  << std::endl;
-//        return;
-//    }
-//
-//    osvr::renderkit::GraphicsLibraryOpenGL* glLibrary = library.OpenGL;
-//
-//    GLdouble projectionGL[16];
-//    osvr::renderkit::OSVR_Projection_to_OpenGL(projectionGL, projection);
-//
-//    GLdouble viewGL[16];
-//    osvr::renderkit::OSVR_PoseState_to_OpenGL(viewGL, pose);
-//    glBindTexture(GL_TEXTURE_2D, g_on_tex);
-//    handsCube.draw(projectionGL, viewGL);
-//}
+void DrawHand(
+    void* userData //< Passed into AddRenderCallback
+    , osvr::renderkit::GraphicsLibrary library //< Graphics library context to use
+    , osvr::renderkit::RenderBuffer buffers //< Buffers to use
+    , osvr::renderkit::OSVR_ViewportDescription
+        viewport //< Viewport we're rendering into
+    , OSVR_PoseState pose //< OSVR ModelView matrix set by RenderManager
+    , osvr::renderkit::OSVR_ProjectionMatrix
+        projection //< Projection matrix set by RenderManager
+    , OSVR_TimeValue deadline //< When the frame should be sent to the screen
+    ) {
+    // Make sure our pointers are filled in correctly.  The config file selects
+    // the graphics library to use, and may not match our needs.
+    if (library.OpenGL == nullptr)
+{
+        std::cerr
+            << "DrawHand: No OpenGL GraphicsLibrary, this should not happen"
+            << std::endl;
+        return;
+    }
+    if (buffers.OpenGL == nullptr) {
+        std::cerr << "DrawHand: No OpenGL RenderBuffer, this should not happen"
+                  << std::endl;
+        return;
+    }
+
+    osvr::renderkit::GraphicsLibraryOpenGL* glLibrary = library.OpenGL;
+
+    GLdouble projectionGL[16];
+    osvr::renderkit::OSVR_Projection_to_OpenGL(projectionGL, projection);
+
+    GLdouble viewGL[16];
+    osvr::renderkit::OSVR_PoseState_to_OpenGL(viewGL, pose);
+    glBindTexture(GL_TEXTURE_2D, g_on_tex);
+    handsCube.draw(projectionGL, viewGL);
+}
 
 static void q_from_OSVR(q_xyz_quat_type& xform, const OSVR_PoseState& pose)
 {
@@ -893,639 +1010,14 @@ static void q_to_OSVR(OSVR_PoseState& pose, const q_xyz_quat_type& xform)
   osvrQuatSetW(&pose.rotation, xform.quat[Q_W]);
 }
 
-//-------------------START MAP DRAW-------------------------------
-/** @file
-    @brief Example program that uses the OSVR direct-to-display interface
-           and OpenGL to render a scene with low latency.
-
-    @date 2015
-
-    @author
-    Russ Taylor <russ@sensics.com>
-    <http://sensics.com/osvr>
-*/
-
-// Copyright 2015 Sensics, Inc.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
-// Internal Includes
-#include <osvr/ClientKit/Context.h>
-#include <osvr/ClientKit/Interface.h>
-#include <osvr/RenderKit/RenderManager.h>
-#include <osvr/RenderKit/RenderKitGraphicsTransforms.h>
-
-// Library/third-party includes
-#ifdef _WIN32
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
-#endif
-#ifdef __APPLE__
-#include <OpenGL/gl3.h>
-#else
-#include <GL/gl.h>
-#endif
-
-// Standard includes
-#include <iostream>
-#include <string>
-#include <stdlib.h> // For exit()
-
-#include <fstream>  //for parsing text file
-
-// This must come after we include <GL/gl.h> so its pointer types are defined.
-#include <osvr/RenderKit/GraphicsLibraryOpenGL.h>
-
-// Forward declarations of rendering functions defined below.
-void draw_cube(double radius, float color[]);
-// void draw_room(double radius);
-void draw_floor(double radius, float color[]);
-void draw_hallway(double radius);
-void draw_pound(double radius);
-//bool render_text(const GLdouble projection[], const GLdouble modelView[],
-//    const char* text, float x, float y, float z, float sx, float sy);
-//
-//// Things needed for Freetype font display
-//FT_Library g_ft = nullptr;
-//FT_Face g_face = nullptr;
-//std::vector<const char*> FONTS = { "./COURIER.TTF" };
-//const int FONT_SIZE = 48;
-//GLuint g_font_tex = 0;
-//GLuint g_on_tex = 0;
-//GLuint g_fontShader = 0;
-//GLuint g_fontVertexBuffer = 0;
-//GLuint g_fontVertexArrayId = 0;
-
-// Set to true when it is time for the application to quit.
-// Handlers below that set it to true when the user causes
-// any of a variety of events so that we shut down the system
-// cleanly.  This only works on Windows, but so does D3D...
-//static bool quit = false;
-
-#ifdef _WIN32
-// Note: On Windows, this runs in a different thread from
-// the main application.
-//static BOOL CtrlHandler(DWORD fdwCtrlType) {
-//    switch (fdwCtrlType) {
-//        // Handle the CTRL-C signal.
-//    case CTRL_C_EVENT:
-//        // CTRL-CLOSE: confirm that the user wants to exit.
-//    case CTRL_CLOSE_EVENT:
-//    case CTRL_BREAK_EVENT:
-//    case CTRL_LOGOFF_EVENT:
-//    case CTRL_SHUTDOWN_EVENT:
-//        quit = true;
-//        return TRUE;
-//    default:
-//        return FALSE;
-//    }
-//}
-#endif
-
- /*This callback sets a boolean value whose pointer is passed in to
- the state of the button that was pressed.  This lets the callback
- be used to handle any button press that just needs to update state.*/
-
-void myButtonCallback(void* userdata, const OSVR_TimeValue* /*timestamp*/,
-    const OSVR_ButtonReport* report) {
-    bool* result = static_cast<bool*>(userdata);
-    *result = (report->state != 0);
-}
-
-bool SetupRendering(osvr::renderkit::GraphicsLibrary library) {
-    // Make sure our pointers are filled in correctly.  The config file selects
-    // the graphics library to use, and may not match our needs.
-    if (library.OpenGL == nullptr) {
-        std::cerr << "SetupRendering: No OpenGL GraphicsLibrary, this should "
-            "not happen"
-            << std::endl;
-        return false;
-    }
-
-    osvr::renderkit::GraphicsLibraryOpenGL* glLibrary = library.OpenGL;
-
-    // Turn on depth testing, so we get correct ordering.
-    glEnable(GL_DEPTH_TEST);
-
-    return true;
-}
-
-//Callback to set up a given display, which may have one or more eyes in it
-void SetupDisplay(
-    void* userData //< Passed into SetDisplayCallback
-    , osvr::renderkit::GraphicsLibrary library //< Graphics library context to use
-    , osvr::renderkit::RenderBuffer buffers //< Buffers to use
-) {
-    // Make sure our pointers are filled in correctly.  The config file selects
-    // the graphics library to use, and may not match our needs.
-    if (library.OpenGL == nullptr) {
-        std::cerr
-            << "SetupDisplay: No OpenGL GraphicsLibrary, this should not happen"
-            << std::endl;
-        return;
-    }
-    if (buffers.OpenGL == nullptr) {
-        std::cerr
-            << "SetupDisplay: No OpenGL RenderBuffer, this should not happen"
-            << std::endl;
-        return;
-    }
-
-    osvr::renderkit::GraphicsLibraryOpenGL* glLibrary = library.OpenGL;
-
-    // Clear the screen to black and clear depth
-    glClearColor(0, 0, 0, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-}
-
- //Callback to set up for rendering into a given eye (viewpoint and projection).
-void SetupEye(
-    void* userData //< Passed into SetViewProjectionCallback
-    , osvr::renderkit::GraphicsLibrary library //< Graphics library context to use
-    , osvr::renderkit::RenderBuffer buffers //< Buffers to use
-    , osvr::renderkit::OSVR_ViewportDescription
-    viewport //< Viewport set by RenderManager
-    , osvr::renderkit::OSVR_ProjectionMatrix
-    projectionToUse //< Projection matrix set by RenderManager
-    , size_t whichEye //< Which eye are we setting up for?
-) {
-    // Make sure our pointers are filled in correctly.  The config file selects
-    // the graphics library to use, and may not match our needs.
-    if (library.OpenGL == nullptr) {
-        std::cerr
-            << "SetupEye: No OpenGL GraphicsLibrary, this should not happen"
-            << std::endl;
-        return;
-    }
-    if (buffers.OpenGL == nullptr) {
-        std::cerr << "SetupEye: No OpenGL RenderBuffer, this should not happen"
-            << std::endl;
-        return;
-    }
-
-    // Set the viewport
-    glViewport(static_cast<GLint>(viewport.left),
-        static_cast<GLint>(viewport.lower),
-        static_cast<GLint>(viewport.width),
-        static_cast<GLint>(viewport.height));
-
-    // Set the OpenGL projection matrix based on the one we
-    // received.
-    GLdouble projection[16];
-    OSVR_Projection_to_OpenGL(projection,
-        projectionToUse);
-    glMatrixMode(GL_PROJECTION);
-    glLoadIdentity();
-    glMultMatrixd(projection);
-
-    // Set the matrix mode to ModelView, so render code doesn't mess with
-    // the projection matrix on accident.
-    glMatrixMode(GL_MODELVIEW);
-}
-
-// Callbacks to draw things in world space, left-hand space, and right-hand
-// space.
-void DrawWorld(
-    void* userData //< Passed into AddRenderCallback
-    , osvr::renderkit::GraphicsLibrary library //< Graphics library context to use
-    , osvr::renderkit::RenderBuffer buffers //< Buffers to use
-    , osvr::renderkit::OSVR_ViewportDescription
-    viewport //< Viewport we're rendering into
-    , OSVR_PoseState pose //< OSVR ModelView matrix set by RenderManager
-    , osvr::renderkit::OSVR_ProjectionMatrix
-    projection //< Projection matrix set by RenderManager
-    , OSVR_TimeValue deadline //< When the frame should be sent to the screen
-) {
-    // Make sure our pointers are filled in correctly.  The config file selects
-    // the graphics library to use, and may not match our needs.
-    if (library.OpenGL == nullptr) {
-        std::cerr
-            << "DrawWorld: No OpenGL GraphicsLibrary, this should not happen"
-            << std::endl;
-        return;
-    }
-    if (buffers.OpenGL == nullptr) {
-        std::cerr << "DrawWorld: No OpenGL RenderBuffer, this should not happen"
-            << std::endl;
-        return;
-    }
-
-    osvr::renderkit::GraphicsLibraryOpenGL* glLibrary = library.OpenGL;
-
-    /// Put the transform into the OpenGL ModelView matrix
-    GLdouble modelView[16];
-    osvr::renderkit::OSVR_PoseState_to_OpenGL(modelView, pose);
-    glMatrixMode(GL_MODELVIEW);
-    glLoadIdentity();
-    glMultMatrixd(modelView);
-
-    // change view to middle of room
-    // GLdouble xCord = -100.0;
-    // GLdouble zCord = 310.0;
-    // glTranslated(xCord, 0, zCord);
-
-
-    //colors
-    static float black_col[] = { 0.0, 0.0, 0.0 };
-    static float red_col[] = { 1.0, 0.0, 0.0 };
-    static float grn_col[] = { 0.0, 1.0, 0.0 };
-    static float blu_col[] = { 0.0, 0.0, 1.0 };
-    static float yel_col[] = { 1.0, 1.0, 0.0 };
-    static float lightblu_col[] = { 0.0, 1.0, 1.0 };
-    static float pur_col[] = { 1.0, 0.0, 1.0 };
-    static float grey[] = { 0.8, 0.8, 0.8 };
-    static float darkGrey[] = { 0.52, 0.52, 0.51 };
-
-    /*glBindTexture(GL_TEXTURE_2D, g_on_tex);
-    GLdouble projectionGL[16];
-    osvr::renderkit::OSVR_Projection_to_OpenGL(projectionGL, projection);
-
-    GLdouble viewGL[16];
-    osvr::renderkit::OSVR_PoseState_to_OpenGL(viewGL, pose);
-
-    render_text(projectionGL, viewGL, "Hello, World Space", -1, 1, -2, 0.004f, 0.004f);*/
-
-    //open text file and parse one char at a time, 
-    //carriage return at every newline
-    std::ifstream ifs;
-    // std::cerr << "attempting to open text file\n";
-    ifs.open("../../../UBuild/umoria/print_floor_test.txt", std::ifstream::in);
-    if (ifs.is_open()) {
-        // std::cerr << "opened file\n";
-    }
-    else {
-        std::cerr << "could not open file\n";
-        perror("test.txt ");
-        exit(1);
-    }
-
-    char c;
-    int playerX = 0;
-    int playerZ = 0;
-    while (ifs.get(c)) {  //get coords for @
-        char curr = c;
-        if (curr == '@') {
-            break;
-        }
-        else if (curr == '\n') {
-            playerX += 1;
-            playerZ = 0;
-        }
-        else {
-            playerZ += 1;
-        }
-    }
-    playerX = 0 - playerX;
-    //translate around @
-    std::cerr << "translating X:";
-    std::cerr << playerX;
-    std::cerr << "\n";
-    std::cerr << "translating Z:";
-    std::cerr << playerZ;
-    std::cerr << "\n";
-    playerX = playerX * 10;
-    playerZ = playerZ * 10;
-    playerX = (GLdouble)playerX;
-    playerZ = (GLdouble)playerZ;
-    glTranslated(playerX, 0, playerZ);
-
-    ifs.close();
-       
-    ifs.open("../../../UBuild/umoria/print_floor_test.txt", std::ifstream::in);
-    if (ifs.is_open()) {
-        // std::cerr << "opened file\n";
-    }
-    else {
-        std::cerr << "could not open file\n";
-        perror("test.txt ");
-        exit(1);
-    }
-    int i = 0;
-
-    while (ifs.get(c)) {         // loop rendering characters
-        // std::cerr << c;
-        char curr = c;
-        switch (curr) {
-        case '#':
-            // std::cerr << "rendering wall";
-            draw_pound(5.0);
-            break;
-        case '.':
-            // std::cerr << "rendering floor";
-            draw_floor(5.0, darkGrey);
-            break;
-        case 'c':
-            // std::cerr << "rendering monster";
-            draw_floor(5.0, darkGrey);
-            glTranslated(0, -4, 0);
-            draw_cube(1.0, pur_col);
-            glTranslated(0, 4, 0);
-            break;
-        case 'p':
-            // std::cerr << "rendering monster";
-            draw_floor(5.0, darkGrey);
-            glTranslated(0, -4, 0);
-            draw_cube(1.0, red_col);
-            glTranslated(0, 4, 0);
-            break;
-        case 'r':
-            // std::cerr << "rendering monster";
-            draw_floor(5.0, darkGrey);
-            glTranslated(0, -4, 0);
-            draw_cube(1.0, blu_col);
-            glTranslated(0, 4, 0);
-            break;
-        case '>':
-            draw_floor(5.0, black_col);
-            break;
-        case '@':
-            draw_floor(5.0, grn_col);
-            break;
-        case '1':
-            draw_floor(5.0, yel_col);
-            break;
-        case '2':
-            draw_floor(5.0, yel_col);
-            break;
-        case '3':
-            draw_floor(5.0, yel_col);
-            break;
-        case '4':
-            draw_floor(5.0, yel_col);
-            break;
-        case '5':
-            draw_floor(5.0, yel_col);
-            break;
-        case '6':
-            draw_floor(5.0, yel_col);
-            break;
-        case '7':
-            draw_floor(5.0, yel_col);
-            break;
-
-        }
-        if (c == '\n') {
-            glTranslated(10, 0, (i * 10));
-            i = 0;
-        }
-        else {
-            glTranslated(0, 0, -10);
-            i += 1;
-        }
-
-    }
-    ifs.close();                // close file
-
-
-    // //map array
-    // int map[4][4] = {{'#', '#', '#', '#'},
-    //                  {'#', '.', '.', '#'},
-    //                  {'#', '.', 'c', '#'},
-    //                  {'#', '#', '#', '#'}};
-
-
-
-    // //draw map
-    // for (int i=0; i<4; i++) {
-    //     for (int j=0; j<4; j++) {
-    //         switch(map[i][j]) {
-    //             case '#':
-    //                 draw_pound(5.0);
-    //                 break;
-    //             case '.':
-    //                 draw_floor(5.0);
-    //                 break;
-    //             case 'c':
-    //                 draw_floor(5.0);
-    //                 draw_cube(1.0);
-    //                 break;
-    //             default:
-    //                 break;
-    //         }
-    //         if (j == 3) {
-    //             glTranslated(10, 0, 30);
-    //         } else {
-    //             glTranslated(0, 0, -10);
-    //         }
-    //     }
-    // }
-
-
-
-    //draw hallway
-    // draw_hallway(5.0);
-    // glTranslated(0, 0, -10);
-
-    // draw_hallway(5.0);
-    // glTranslated(0, 0, -10);
-
-    // draw_hallway(5.0);
-    // glTranslated(0, 0, -10);
-
-    // draw_hallway(5.0);
-    // glTranslated(0, 0, -10);
-
-    // draw_hallway(5.0);
-    // glTranslated(0, 0, 5);
-
-    /// Draw a cube with a 5-meter radius as the room we are floating in.
-    // draw_cube(5.0);
-
-    //draw floor
-    // draw_floor(5.0);
-
-    // Draw another cube 1 meter along the -Z axis
-    // glTranslated(0, 0, -1);
-    // draw_cube(0.1);
-
-    // glTranslated(0, 0, 2);
-    // draw_cube(0.1);
-
-    // glTranslated(0,1,-1);
-    // draw_cube(0.1);
-}
-
-// This can be used to draw a heads-up display.  Unlike in a non-VR game,
-// this can't be drawn in screen space because it has to be at a consistent
-// location for stereo viewing through potentially-distorted and offset lenses
-// from the HMD.  This example uses a small cube drawn in front of us.
-// NOTE: For a fixed-display set-up, you do want to draw in screen space.
-void DrawHead(
-    void* userData //< Passed into AddRenderCallback
-    , osvr::renderkit::GraphicsLibrary library //< Graphics library context to use
-    , osvr::renderkit::RenderBuffer buffers //< Buffers to use
-    , osvr::renderkit::OSVR_ViewportDescription
-    viewport //< Viewport we're rendering into
-    , OSVR_PoseState pose //< OSVR ModelView matrix set by RenderManager
-    , osvr::renderkit::OSVR_ProjectionMatrix
-    projection //< Projection matrix set by RenderManager
-    , OSVR_TimeValue deadline //< When the frame should be sent to the screen
-) {
-    std::string* stringToPrint = static_cast<std::string*>(userData);
-
-    // Make sure our pointers are filled in correctly.  The config file selects
-    // the graphics library to use, and may not match our needs.
-    if (library.OpenGL == nullptr) {
-        std::cerr
-            << "DrawHead: No OpenGL GraphicsLibrary, this should not happen"
-            << std::endl;
-        return;
-    }
-    if (buffers.OpenGL == nullptr) {
-        std::cerr << "DrawHead: No OpenGL RenderBuffer, this should not happen"
-            << std::endl;
-        return;
-    }
-
-    osvr::renderkit::GraphicsLibraryOpenGL* glLibrary = library.OpenGL;
-
-    /*glBindTexture(GL_TEXTURE_2D, g_on_tex);
-    GLdouble projectionGL[16];
-    osvr::renderkit::OSVR_Projection_to_OpenGL(projectionGL, projection);
-
-    GLdouble viewGL[16];
-    osvr::renderkit::OSVR_PoseState_to_OpenGL(viewGL, pose);
-
-    render_text(projectionGL, viewGL, "Hello, World Space", -1, 1, -2, 0.004f, 0.004f);*/
-
-    /// Put the transform into the OpenGL ModelView matrix
-    GLdouble modelView[16];
-    osvr::renderkit::OSVR_PoseState_to_OpenGL(modelView, pose);
-    glMatrixMode(GL_MODELVIEW);
-    glLoadIdentity();
-    glMultMatrixd(modelView);
-
-    /// Draw a small cube in front of us.
-    glTranslated(0, 0, -0.25);
-    // draw_cube(0.005);
-}
-
-void DrawLeftHand(
-    void* userData //< Passed into AddRenderCallback
-    , osvr::renderkit::GraphicsLibrary library //< Graphics library context to use
-    , osvr::renderkit::RenderBuffer buffers //< Buffers to use
-    , osvr::renderkit::OSVR_ViewportDescription
-    viewport //< Viewport we're rendering into
-    , OSVR_PoseState pose //< OSVR ModelView matrix set by RenderManager
-    , osvr::renderkit::OSVR_ProjectionMatrix
-    projection //< Projection matrix set by RenderManager
-    , OSVR_TimeValue deadline //< When the frame should be sent to the screen
-) {
-    // Make sure our pointers are filled in correctly.  The config file selects
-    // the graphics library to use, and may not match our needs.
-    if (library.OpenGL == nullptr) {
-        std::cerr
-            << "DrawLeftHand: No OpenGL GraphicsLibrary, this should not happen"
-            << std::endl;
-        return;
-    }
-    if (buffers.OpenGL == nullptr) {
-        std::cerr
-            << "DrawLeftHand: No OpenGL RenderBuffer, this should not happen"
-            << std::endl;
-        return;
-    }
-
-    osvr::renderkit::GraphicsLibraryOpenGL* glLibrary = library.OpenGL;
-
-    /// Put the transform into the OpenGL ModelView matrix
-    GLdouble modelView[16];
-    osvr::renderkit::OSVR_PoseState_to_OpenGL(modelView, pose);
-    glMatrixMode(GL_MODELVIEW);
-    glLoadIdentity();
-    glMultMatrixd(modelView);
-
-    /// Draw a small cube.
-    // draw_cube(0.05);
-}
-
-void DrawRightHand(
-    void* userData //< Passed into AddRenderCallback
-    , osvr::renderkit::GraphicsLibrary library //< Graphics library context to use
-    , osvr::renderkit::RenderBuffer buffers //< Buffers to use
-    , osvr::renderkit::OSVR_ViewportDescription
-    viewport //< Viewport we're rendering into
-    , OSVR_PoseState pose //< OSVR ModelView matrix set by RenderManager
-    , osvr::renderkit::OSVR_ProjectionMatrix
-    projection //< Projection matrix set by RenderManager
-    , OSVR_TimeValue deadline //< When the frame should be sent to the screen
-) {
-    // Make sure our pointers are filled in correctly.  The config file selects
-    // the graphics library to use, and may not match our needs.
-    if (library.OpenGL == nullptr) {
-        std::cerr << "DrawRightHand: No OpenGL GraphicsLibrary, this should "
-            "not happen"
-            << std::endl;
-        return;
-    }
-    if (buffers.OpenGL == nullptr) {
-        std::cerr
-            << "DrawRightHand: No OpenGL RenderBuffer, this should not happen"
-            << std::endl;
-        return;
-    }
-
-    osvr::renderkit::GraphicsLibraryOpenGL* glLibrary = library.OpenGL;
-
-    /// Put the transform into the OpenGL ModelView matrix
-    GLdouble modelView[16];
-    osvr::renderkit::OSVR_PoseState_to_OpenGL(modelView, pose);
-    glMatrixMode(GL_MODELVIEW);
-    glLoadIdentity();
-    glMultMatrixd(modelView);
-
-    /// Draw a small cube.
-    // draw_cube(0.05);
-}
-
-void Usage(std::string name) {
-    std::cerr << "Usage: " << name << " [-IPD value_in_meters]" << std::endl;
-    exit(-1);
-}
-
-int main(int argc, char* argv[]) {
-    
-    // Parse the command line
-    int delayMilliSeconds = 0;
-    int realParams = 0;
-    double IPDMeters = 0.063;
-    for (int i = 1; i < argc; i++) {
-        if (std::string("-IPD") == argv[i]) {
-            if (++i >= argc) {
-                Usage(argv[0]);
-            }
-            IPDMeters = atof(argv[i]);
-        }
-        else if (argv[i][0] == '-') {
-            Usage(argv[0]);
-        }
-        else
-            switch (++realParams) {
-            case 1:
-                delayMilliSeconds = atoi(argv[i]);
-                break;
-            default:
-                Usage(argv[0]);
-            }
-    }
-    if (realParams > 1) {
-        Usage(argv[0]);
-    }
+int main(int argc, char* argv[])
+{
+    GLenum err;
 
     // Get an OSVR client context to use to access the devices
     // that we need.
     osvr::clientkit::ClientContext context(
-        "com.osvr.renderManager.openGLExample");
+        "com.reliasolve.OSVR-Installer.OpenGLCoreTextureFlyExample");
 
     // Construct button devices and connect them to a callback
     // that will set the "quit" variable to true when it is
@@ -1539,7 +1031,20 @@ int main(int argc, char* argv[]) {
         context.getInterface("/controller/right/1");
     rightButton1.registerCallback(&myButtonCallback, &quit);
 
-    // Open Direct3D and set up the context for rendering to
+    // Construct the analog devices we need to read info
+    // needed for flying.
+    osvr::clientkit::Interface analogTrigger =
+      context.getInterface("/controller/trigger");
+    osvr::clientkit::Interface analogLeftStickX =
+      context.getInterface("/controller/leftStickX");
+    osvr::clientkit::Interface analogLeftStickY =
+      context.getInterface("/controller/leftStickY");
+    osvr::clientkit::Interface analogRightStickX =
+      context.getInterface("/controller/rightStickX");
+    osvr::clientkit::Interface headSpace =
+      context.getInterface("/me/head");
+
+    // Open OpenGL and set up the context for rendering to
     // an HMD.  Do this using the OSVR RenderManager interface,
     // which maps to the nVidia or other vendor direct mode
     // to reduce the latency.
@@ -1551,20 +1056,20 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    // Set callback to handle setting up rendering in a display
-    render->SetDisplayCallback(SetupDisplay);
-
     // Set callback to handle setting up rendering in an eye
     render->SetViewProjectionCallback(SetupEye);
 
-    // Register callbacks to render things in head, left hand, right
+    // Set callback to handle setting up rendering in a display
+    render->SetDisplayCallback(SetupDisplay);
+
+    // Register callbacks to render things in left hand, right
     // hand, and world space.
     render->AddRenderCallback("/", DrawWorld);
     render->AddRenderCallback("/me/head", DrawHead);
-    render->AddRenderCallback("/me/hands/left", DrawLeftHand);
-    render->AddRenderCallback("/me/hands/right", DrawRightHand);
+    render->AddRenderCallback("/me/hands/left", DrawHand);
+    render->AddRenderCallback("/me/hands/right", DrawHand);
 
-    // Set up a handler to cause us to exit cleanly.
+// Set up a handler to cause us to exit cleanly.
 #ifdef _WIN32
     SetConsoleCtrlHandler((PHANDLER_ROUTINE)CtrlHandler, TRUE);
 #endif
@@ -1576,42 +1081,116 @@ int main(int argc, char* argv[]) {
         delete render;
         return 2;
     }
+    if (ret.library.OpenGL == nullptr) {
+        std::cerr << "Attempted to run an OpenGL program with a config file "
+                  << "that specified a different rendering library."
+                  << std::endl;
+        return 3;
+    }
 
     // Set up the rendering state we need.
     if (!SetupRendering(ret.library)) {
         return 3;
     }
 
-    //-----------------IF STATEMENT PASTE BEGIN--------------------------------------
+    glewExperimental = true;
+    if (glewInit() != GLEW_OK) {
+        std::cerr << "Failed ot initialize GLEW\n" << std::endl;
+        return -1;
+    }
+    // Clear any GL error that Glew caused.  Apparently on Non-Windows
+    // platforms, this can cause a spurious  error 1280.
+    glGetError();
+
     // Initialize Freetype and load the font we're going to use.
     // This must be done after GLEW and OpenGL are initialized.
     if (FT_Init_FreeType(&g_ft)) {
-        std::cerr << "Could not init freetype library" << std::endl;
-    }
-    else {
-        // Check for any available fonts.  Use the first one we find.
-        bool found = false;
-        for (auto f : FONTS) {
-            if (0 == FT_New_Face(g_ft, f, 0, &g_face)) {
-                found = true;
-            }
-            else {
-                std::cerr << "Fovea: Could not open font " << f << std::endl;
-            }
+      std::cerr << "Could not init freetype library" << std::endl;
+    } else {
+      // Check for any available fonts.  Use the first one we find.
+      bool found = false;
+      for (auto f : FONTS) {
+        if (0 == FT_New_Face(g_ft, f, 0, &g_face)) {
+          found = true;
+        } else {
+          std::cerr << "Fovea: Could not open font " << f << std::endl;
         }
-        if (!found) {
-            std::cerr << "Fovea: Could not open any font" << std::endl;
-            FT_Done_FreeType(g_ft);
-            g_ft = nullptr;
-        }
-        else {
-            FT_Set_Pixel_Sizes(g_face, 0, FONT_SIZE);
-        }
+      }
+      if (!found) {
+        std::cerr << "Fovea: Could not open any font" << std::endl;
+        FT_Done_FreeType(g_ft);
+        g_ft = nullptr;
+      } else {
+        FT_Set_Pixel_Sizes(g_face, 0, FONT_SIZE);
+      }
     }
     glGenBuffers(1, &g_fontVertexBuffer);
     glGenVertexArrays(1, &g_fontVertexArrayId);
-    //------------------PASTE END------------------------------------------
 
+    // Make an all-on texture to use when we're not rendering text.  Fill it with all 1's.
+    // Note: We could also use a different shader for when we're not rendering textures.
+    // Set the parameters we need to render the text properly.
+    // Leave this texture bound whenever we're not drawing text.
+    glGenTextures(1, &g_on_tex);
+    glBindTexture(GL_TEXTURE_2D, g_on_tex);
+    GLubyte onTex[] = {
+      255,255,255,255,
+      255,255,255,255,
+      255,255,255,255,
+      255,255,255,255 };
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    glPixelStorei(GL_UNPACK_ROW_LENGTH, 2);
+    err = glGetError();
+    if (err != GL_NO_ERROR) {
+      std::cerr << "Error setting parameters for 'on' texture: "
+        << err << std::endl;
+    }
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 2, 2,
+      0, GL_RGBA, GL_UNSIGNED_BYTE, onTex);
+    err = glGetError();
+    if (err != GL_NO_ERROR) {
+      std::cerr << "Error writing 'on' texture: "
+        << err << std::endl;
+      quit = true;
+    }
+
+    // Set up a world-from-room additional transformation that we will
+    // adjust as the user flies around using a joystick.  They always fly
+    // in the local viewing coordinate system.
+    OSVR_PoseState pose;
+    osvrPose3SetIdentity(&pose);
+
+#if 0
+    // Set up any initial offset and orient changes that we want.
+    double X_OFFSET = -48;  //-29
+    double Y_OFFSET = 20;   // 58
+    double Z_OFFSET = 49.5; // 49
+    /*XXX
+    double X_OFFSET = 0;  //-29
+    double Y_OFFSET = 3;   // 58
+    double Z_OFFSET = 5; // 49
+    */
+    pose.translation.data[0] = X_OFFSET;
+    pose.translation.data[1] = Y_OFFSET;
+    pose.translation.data[2] = Z_OFFSET;
+    // Rotate by 90 degrees around X to make Z down
+    pose.rotation.data[0] = 0.7071;
+    pose.rotation.data[1] = 0.7071;
+    q_type initialRotation;
+    initialRotation[Q_X] = osvrQuatGetX(&pose.rotation);
+    initialRotation[Q_Y] = osvrQuatGetY(&pose.rotation);
+    initialRotation[Q_Z] = osvrQuatGetZ(&pose.rotation);
+    initialRotation[Q_W] = osvrQuatGetW(&pose.rotation);
+#endif
+
+    // Keeps track of when we last updated the system
+    // state.
+    OSVR_TimeValue  lastTime;
+    osvrTimeValueGetNow(&lastTime);
 
     // Continue rendering until it is time to quit.
     while (!quit) {
@@ -1619,8 +1198,100 @@ int main(int argc, char* argv[]) {
         // update tracker state.
         context.update();
 
+        //==========================================================================
+        // This section handles flying the user around based on the analog inputs.
+
+        // Read the current value of the analogs we want
+        OSVR_TimeValue  ignore;
+        OSVR_AnalogState triggerValue = 0;
+        osvrGetAnalogState(analogTrigger.get(), &ignore, &triggerValue);
+        OSVR_AnalogState leftStickXValue = 0;
+        osvrGetAnalogState(analogLeftStickX.get(), &ignore, &leftStickXValue);
+        OSVR_AnalogState leftStickYValue = 0;
+        osvrGetAnalogState(analogLeftStickY.get(), &ignore, &leftStickYValue);
+        OSVR_AnalogState rightStickXValue = 0;
+        osvrGetAnalogState(analogRightStickX.get(), &ignore, &rightStickXValue);
+
+        // Figure out how much to move and in which directions based
+        // on how much time as passed and what the analog values are.
+        const double X_SPEED_SCALE = 3.0;
+        const double Y_SPEED_SCALE = -3.0;  // Y axis on controller is backwards
+        const double Z_SPEED_SCALE = -2.0;
+        const double SPIN_SPEED_SCALE = -Q_PI / 2;  // Want to spin the other way
+        OSVR_TimeValue  now;
+        osvrTimeValueGetNow(&now);
+        OSVR_TimeValue nowCopy = now;
+        osvrTimeValueDifference(&now, &lastTime);
+        lastTime = nowCopy;
+
+        double dt = now.seconds + now.microseconds * 1e-6;
+        double right = dt * leftStickXValue * X_SPEED_SCALE;
+        double forward = dt * leftStickYValue * Y_SPEED_SCALE;
+        double up = dt * triggerValue * Z_SPEED_SCALE;
+        double spin = dt * rightStickXValue * SPIN_SPEED_SCALE;
+
+        // The deltaY will always point up in world space, but the
+        // motion in X and Y need to be rotated so that X goes in the
+        // direction of forward gaze (-Z) and Y goes to the right (X).
+        // These will be arbitrary 3D locations, so will be added to
+        // all of X, Y, and Z.
+        double deltaX = 0, deltaY = 0, deltaZ = 0;
+        deltaY += up;
+
+        // Make forward be along -Z in head space.
+        // Remember that room space is rotated w.r.t. world space
+        OSVR_PoseState currentHead;
+        OSVR_ReturnCode ret = osvrGetPoseState(headSpace.get(), &ignore, &currentHead);
+        if (ret == OSVR_RETURN_SUCCESS) {
+
+          // Adjust the rotation by spinning around the vertical (Y) axis
+          q_type rot;
+          q_from_axis_angle(rot, 0, 1, 0, spin);
+          q_xyz_quat_type cur_pose;
+          q_from_OSVR(cur_pose, pose);
+          q_mult(cur_pose.quat, rot, cur_pose.quat);
+          q_to_OSVR(pose, cur_pose);
+
+          // Get the current head pose in room space.
+          q_xyz_quat_type poseXform;
+          q_from_OSVR(poseXform, currentHead);
+
+          // Find -Z in world space by catenating the room-to-world
+          // rotation.
+          q_vec_type negZ = { 0, 0, -1 };
+          q_vec_type forwardDir;
+          q_xform(forwardDir, poseXform.quat, negZ);
+          q_xform(forwardDir, cur_pose.quat, forwardDir);
+          q_vec_scale(forwardDir, forward, forwardDir);
+          deltaX += forwardDir[Q_X];
+          deltaY += forwardDir[Q_Y];
+          deltaZ += forwardDir[Q_Z];
+
+          // Make right be along +X in head space.
+          // Remember that room space is rotated w.r.t. world space.
+          q_vec_type X = { 1, 0, 0 };
+          q_vec_type rightDir;
+          q_xform(rightDir, poseXform.quat, X);
+          q_xform(rightDir, cur_pose.quat, rightDir);
+          q_vec_scale(rightDir, right, rightDir);
+          deltaX += rightDir[Q_X];
+          deltaY += rightDir[Q_Y];
+          deltaZ += rightDir[Q_Z];
+
+          // Adjust the roomToWorld pose based on the changes,
+          // unless there was too long of a time between readings.
+          if (dt < 0.5) {
+            pose.translation.data[0] += deltaX;
+            pose.translation.data[1] += deltaY;
+            pose.translation.data[2] += deltaZ;
+          }
+        }
+
+        //==========================================================================
+        // Render the scene, sending it the current roomToWorld transform that
+        // tells it about how we are flying.
         osvr::renderkit::RenderManager::RenderParams params;
-        params.IPDMeters = IPDMeters;
+        params.worldFromRoomAppend = &pose;
         if (!render->Render(params)) {
             std::cerr
                 << "Render() returned false, maybe because it was asked to quit"
@@ -1629,527 +1300,15 @@ int main(int argc, char* argv[]) {
         }
     }
 
+    glDeleteVertexArrays(1, &g_fontVertexArrayId);
+    glDeleteBuffers(1, &g_fontVertexBuffer);
+    glDeleteTextures(1, &g_on_tex);
+    glDeleteTextures(1, &g_font_tex);
+    if (g_face) { FT_Done_Face(g_face); g_face = nullptr; }
+    if (g_ft) { FT_Done_FreeType(g_ft); g_ft = nullptr; }
+
     // Close the Renderer interface cleanly.
     delete render;
 
     return 0;
 }
-
-static GLfloat matspec[4] = { 0.5, 0.5, 0.5, 0.0 };
-static float black_col[] = { 0.0, 0.0, 0.0 };
-static float red_col[] = { 1.0, 0.0, 0.0 };
-static float grn_col[] = { 0.0, 1.0, 0.0 };
-static float blu_col[] = { 0.0, 0.0, 1.0 };
-static float yel_col[] = { 1.0, 1.0, 0.0 };
-static float lightblu_col[] = { 0.0, 1.0, 1.0 };
-static float pur_col[] = { 1.0, 0.0, 1.0 };
-static float grey[] = { 0.8, 0.8, 0.8 };
-static float darkGrey[] = { 0.52, 0.52, 0.51 };
-
-void draw_floor(double radius, float color[]) {
-    glPushMatrix();
-    glScaled(radius, radius, radius);
-    glMaterialfv(GL_FRONT, GL_SPECULAR, matspec);
-    glMaterialf(GL_FRONT, GL_SHININESS, 64.0);
-
-    glBegin(GL_POLYGON);
-    glColor3fv(color);
-    glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, color);
-    glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, color);
-    glNormal3f(0.0, -1.0, 0.0);
-    glVertex3f(1.0, -1.0, 1.0);
-    glVertex3f(-1.0, -1.0, 1.0);
-    glVertex3f(-1.0, -1.0, -1.0);
-    glVertex3f(1.0, -1.0, -1.0);
-    glEnd();
-
-    glPopMatrix();
-}
-void draw_hallway(double radius) {
-    glPushMatrix();
-    glScaled(radius, radius, radius);
-    glMaterialfv(GL_FRONT, GL_SPECULAR, matspec);
-    glMaterialf(GL_FRONT, GL_SHININESS, 64.0);
-
-    //floor
-    glBegin(GL_POLYGON);
-    glColor3fv(blu_col);
-    glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, blu_col);
-    glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, blu_col);
-    glNormal3f(0.0, -1.0, 0.0);
-    glVertex3f(1.0, -1.0, 1.0);
-    glVertex3f(-1.0, -1.0, 1.0);
-    glVertex3f(-1.0, -1.0, -1.0);
-    glVertex3f(1.0, -1.0, -1.0);
-    glEnd();
-
-    //right wall
-    glBegin(GL_POLYGON);
-    glColor3fv(grey);
-    glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, grey);
-    glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, grey);
-    glNormal3f(1.0, 0.0, 0.0);
-    glVertex3f(1.0, -1.0, 1.0);
-    glVertex3f(1.0, -1.0, -1.0);
-    glVertex3f(1.0, 1.0, -1.0);
-    glVertex3f(1.0, 1.0, 1.0);
-    glEnd();
-
-    //left wall
-    glBegin(GL_POLYGON);
-    glColor3fv(grey);
-    glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, grey);
-    glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, grey);
-    glNormal3f(-1.0, 0.0, 0.0);
-    glVertex3f(-1.0, 1.0, 1.0);
-    glVertex3f(-1.0, 1.0, -1.0);
-    glVertex3f(-1.0, -1.0, -1.0);
-    glVertex3f(-1.0, -1.0, 1.0);
-    glEnd();
-
-    glPopMatrix();
-}
-
-void draw_cube(double radius, float color[]) {
-    glPushMatrix();
-    glScaled(radius, radius, radius);
-    glMaterialfv(GL_FRONT, GL_SPECULAR, matspec);
-    glMaterialf(GL_FRONT, GL_SHININESS, 64.0);
-    glBegin(GL_POLYGON);
-    glColor3fv(color);
-    glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, color);
-    glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, color);
-    glNormal3f(0.0, 0.0, -1.0);
-    glVertex3f(1.0, 1.0, -1.0);
-    glVertex3f(1.0, -1.0, -1.0);
-    glVertex3f(-1.0, -1.0, -1.0);
-    glVertex3f(-1.0, 1.0, -1.0);
-    glEnd();
-    glBegin(GL_POLYGON);
-    glColor3fv(color);
-    glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, color);
-    glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, color);
-    glNormal3f(0.0, 0.0, 1.0);
-    glVertex3f(-1.0, 1.0, 1.0);
-    glVertex3f(-1.0, -1.0, 1.0);
-    glVertex3f(1.0, -1.0, 1.0);
-    glVertex3f(1.0, 1.0, 1.0);
-    glEnd();
-    glBegin(GL_POLYGON);
-    glColor3fv(color);
-    glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, color);
-    glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, color);
-    glNormal3f(0.0, -1.0, 0.0);
-    glVertex3f(1.0, -1.0, 1.0);
-    glVertex3f(-1.0, -1.0, 1.0);
-    glVertex3f(-1.0, -1.0, -1.0);
-    glVertex3f(1.0, -1.0, -1.0);
-    glEnd();
-    glBegin(GL_POLYGON);
-    glColor3fv(color);
-    glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, color);
-    glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, color);
-    glNormal3f(0.0, 1.0, 0.0);
-    glVertex3f(1.0, 1.0, 1.0);
-    glVertex3f(1.0, 1.0, -1.0);
-    glVertex3f(-1.0, 1.0, -1.0);
-    glVertex3f(-1.0, 1.0, 1.0);
-    glEnd();
-    glBegin(GL_POLYGON);
-    glColor3fv(color);
-    glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, color);
-    glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, color);
-    glNormal3f(-1.0, 0.0, 0.0);
-    glVertex3f(-1.0, 1.0, 1.0);
-    glVertex3f(-1.0, 1.0, -1.0);
-    glVertex3f(-1.0, -1.0, -1.0);
-    glVertex3f(-1.0, -1.0, 1.0);
-    glEnd();
-    glBegin(GL_POLYGON);
-    glColor3fv(color);
-    glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, color);
-    glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, color);
-    glNormal3f(1.0, 0.0, 0.0);
-    glVertex3f(1.0, -1.0, 1.0);
-    glVertex3f(1.0, -1.0, -1.0);
-    glVertex3f(1.0, 1.0, -1.0);
-    glVertex3f(1.0, 1.0, 1.0);
-    glEnd();
-    glPopMatrix();
-}
-
-void draw_pound(double radius) {
-    glPushMatrix();
-    glScaled(radius, radius, radius);
-    glMaterialfv(GL_FRONT, GL_SPECULAR, matspec);
-    glMaterialf(GL_FRONT, GL_SHININESS, 64.0);
-    glBegin(GL_POLYGON);
-    glColor3fv(grey);
-    glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, grey);
-    glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, grey);
-    glNormal3f(0.0, 0.0, -1.0);
-    glVertex3f(1.0, 1.0, -1.0);
-    glVertex3f(1.0, -1.0, -1.0);
-    glVertex3f(-1.0, -1.0, -1.0);
-    glVertex3f(-1.0, 1.0, -1.0);
-    glEnd();
-    glBegin(GL_POLYGON);
-    glColor3fv(grey);
-    glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, grey);
-    glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, grey);
-    glNormal3f(0.0, 0.0, 1.0);
-    glVertex3f(-1.0, 1.0, 1.0);
-    glVertex3f(-1.0, -1.0, 1.0);
-    glVertex3f(1.0, -1.0, 1.0);
-    glVertex3f(1.0, 1.0, 1.0);
-    glEnd();
-    glBegin(GL_POLYGON);
-    glColor3fv(grey);
-    glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, grey);
-    glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, grey);
-    glNormal3f(0.0, -1.0, 0.0);
-    glVertex3f(1.0, -1.0, 1.0);
-    glVertex3f(-1.0, -1.0, 1.0);
-    glVertex3f(-1.0, -1.0, -1.0);
-    glVertex3f(1.0, -1.0, -1.0);
-    glEnd();
-    glBegin(GL_POLYGON);
-    glColor3fv(grey);
-    glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, grey);
-    glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, grey);
-    glNormal3f(0.0, 1.0, 0.0);
-    glVertex3f(1.0, 1.0, 1.0);
-    glVertex3f(1.0, 1.0, -1.0);
-    glVertex3f(-1.0, 1.0, -1.0);
-    glVertex3f(-1.0, 1.0, 1.0);
-    glEnd();
-    glBegin(GL_POLYGON);
-    glColor3fv(grey);
-    glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, grey);
-    glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, grey);
-    glNormal3f(-1.0, 0.0, 0.0);
-    glVertex3f(-1.0, 1.0, 1.0);
-    glVertex3f(-1.0, 1.0, -1.0);
-    glVertex3f(-1.0, -1.0, -1.0);
-    glVertex3f(-1.0, -1.0, 1.0);
-    glEnd();
-    glBegin(GL_POLYGON);
-    glColor3fv(grey);
-    glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, grey);
-    glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, grey);
-    glNormal3f(1.0, 0.0, 0.0);
-    glVertex3f(1.0, -1.0, 1.0);
-    glVertex3f(1.0, -1.0, -1.0);
-    glVertex3f(1.0, 1.0, -1.0);
-    glVertex3f(1.0, 1.0, 1.0);
-    glEnd();
-    glPopMatrix();
-}
-
-
-//-------------------END MAP DRAW --------------------------------
-
-
-
-//int main(int argc, char* argv[])
-//{
-//    GLenum err;
-//
-//    // Get an OSVR client context to use to access the devices
-//    // that we need.
-//    osvr::clientkit::ClientContext context(
-//        "com.reliasolve.OSVR-Installer.OpenGLCoreTextureFlyExample");
-//
-//    // Construct button devices and connect them to a callback
-//    // that will set the "quit" variable to true when it is
-//    // pressed.  Use button "1" on the left-hand or
-//    // right-hand controller.
-//    osvr::clientkit::Interface leftButton1 =
-//        context.getInterface("/controller/left/1");
-//    leftButton1.registerCallback(&myButtonCallback, &quit);
-//
-//    osvr::clientkit::Interface rightButton1 =
-//        context.getInterface("/controller/right/1");
-//    rightButton1.registerCallback(&myButtonCallback, &quit);
-//
-//    // Construct the analog devices we need to read info
-//    // needed for flying.
-//    osvr::clientkit::Interface analogTrigger =
-//      context.getInterface("/controller/trigger");
-//    osvr::clientkit::Interface analogLeftStickX =
-//      context.getInterface("/controller/leftStickX");
-//    osvr::clientkit::Interface analogLeftStickY =
-//      context.getInterface("/controller/leftStickY");
-//    osvr::clientkit::Interface analogRightStickX =
-//      context.getInterface("/controller/rightStickX");
-//    osvr::clientkit::Interface headSpace =
-//      context.getInterface("/me/head");
-//
-//    // Open OpenGL and set up the context for rendering to
-//    // an HMD.  Do this using the OSVR RenderManager interface,
-//    // which maps to the nVidia or other vendor direct mode
-//    // to reduce the latency.
-//    osvr::renderkit::RenderManager* render =
-//        osvr::renderkit::createRenderManager(context.get(), "OpenGL");
-//
-//    if ((render == nullptr) || (!render->doingOkay())) {
-//        std::cerr << "Could not create RenderManager" << std::endl;
-//        return 1;
-//    }
-//
-//    // Set callback to handle setting up rendering in an eye
-//    render->SetViewProjectionCallback(SetupEye);
-//
-//    // Set callback to handle setting up rendering in a display
-//    render->SetDisplayCallback(SetupDisplay);
-//
-//    // Register callbacks to render things in left hand, right
-//    // hand, and world space.
-//    render->AddRenderCallback("/", DrawWorld);
-//    render->AddRenderCallback("/me/head", DrawHead);
-//    render->AddRenderCallback("/me/hands/left", DrawHand);
-//    render->AddRenderCallback("/me/hands/right", DrawHand);
-//
-//// Set up a handler to cause us to exit cleanly.
-//#ifdef _WIN32
-//    SetConsoleCtrlHandler((PHANDLER_ROUTINE)CtrlHandler, TRUE);
-//#endif
-//
-//    // Open the display and make sure this worked.
-//    osvr::renderkit::RenderManager::OpenResults ret = render->OpenDisplay();
-//    if (ret.status == osvr::renderkit::RenderManager::OpenStatus::FAILURE) {
-//        std::cerr << "Could not open display" << std::endl;
-//        delete render;
-//        return 2;
-//    }
-//    if (ret.library.OpenGL == nullptr) {
-//        std::cerr << "Attempted to run an OpenGL program with a config file "
-//                  << "that specified a different rendering library."
-//                  << std::endl;
-//        return 3;
-//    }
-//
-//    // Set up the rendering state we need.
-//    if (!SetupRendering(ret.library)) {
-//        return 3;
-//    }
-//
-//    glewExperimental = true;
-//    if (glewInit() != GLEW_OK) {
-//        std::cerr << "Failed ot initialize GLEW\n" << std::endl;
-//        return -1;
-//    }
-//    // Clear any GL error that Glew caused.  Apparently on Non-Windows
-//    // platforms, this can cause a spurious  error 1280.
-//    glGetError();
-//
-//    // Initialize Freetype and load the font we're going to use.
-//    // This must be done after GLEW and OpenGL are initialized.
-//    if (FT_Init_FreeType(&g_ft)) {
-//      std::cerr << "Could not init freetype library" << std::endl;
-//    } else {
-//      // Check for any available fonts.  Use the first one we find.
-//      bool found = false;
-//      for (auto f : FONTS) {
-//        if (0 == FT_New_Face(g_ft, f, 0, &g_face)) {
-//          found = true;
-//        } else {
-//          std::cerr << "Fovea: Could not open font " << f << std::endl;
-//        }
-//      }
-//      if (!found) {
-//        std::cerr << "Fovea: Could not open any font" << std::endl;
-//        FT_Done_FreeType(g_ft);
-//        g_ft = nullptr;
-//      } else {
-//        FT_Set_Pixel_Sizes(g_face, 0, FONT_SIZE);
-//      }
-//    }
-//    glGenBuffers(1, &g_fontVertexBuffer);
-//    glGenVertexArrays(1, &g_fontVertexArrayId);
-//
-//    // Make an all-on texture to use when we're not rendering text.  Fill it with all 1's.
-//    // Note: We could also use a different shader for when we're not rendering textures.
-//    // Set the parameters we need to render the text properly.
-//    // Leave this texture bound whenever we're not drawing text.
-//    glGenTextures(1, &g_on_tex);
-//    glBindTexture(GL_TEXTURE_2D, g_on_tex);
-//    GLubyte onTex[] = {
-//      255,255,255,255,
-//      255,255,255,255,
-//      255,255,255,255,
-//      255,255,255,255 };
-//    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-//    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-//    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-//    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-//    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-//    glPixelStorei(GL_UNPACK_ROW_LENGTH, 2);
-//    err = glGetError();
-//    if (err != GL_NO_ERROR) {
-//      std::cerr << "Error setting parameters for 'on' texture: "
-//        << err << std::endl;
-//    }
-//    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 2, 2,
-//      0, GL_RGBA, GL_UNSIGNED_BYTE, onTex);
-//    err = glGetError();
-//    if (err != GL_NO_ERROR) {
-//      std::cerr << "Error writing 'on' texture: "
-//        << err << std::endl;
-//      quit = true;
-//    }
-//
-//    // Set up a world-from-room additional transformation that we will
-//    // adjust as the user flies around using a joystick.  They always fly
-//    // in the local viewing coordinate system.
-//    OSVR_PoseState pose;
-//    osvrPose3SetIdentity(&pose);
-//
-//#if 0
-//    // Set up any initial offset and orient changes that we want.
-//    double X_OFFSET = -48;  //-29
-//    double Y_OFFSET = 20;   // 58
-//    double Z_OFFSET = 49.5; // 49
-//    /*XXX
-//    double X_OFFSET = 0;  //-29
-//    double Y_OFFSET = 3;   // 58
-//    double Z_OFFSET = 5; // 49
-//    */
-//    pose.translation.data[0] = X_OFFSET;
-//    pose.translation.data[1] = Y_OFFSET;
-//    pose.translation.data[2] = Z_OFFSET;
-//    // Rotate by 90 degrees around X to make Z down
-//    pose.rotation.data[0] = 0.7071;
-//    pose.rotation.data[1] = 0.7071;
-//    q_type initialRotation;
-//    initialRotation[Q_X] = osvrQuatGetX(&pose.rotation);
-//    initialRotation[Q_Y] = osvrQuatGetY(&pose.rotation);
-//    initialRotation[Q_Z] = osvrQuatGetZ(&pose.rotation);
-//    initialRotation[Q_W] = osvrQuatGetW(&pose.rotation);
-//#endif
-//
-//    // Keeps track of when we last updated the system
-//    // state.
-//    OSVR_TimeValue  lastTime;
-//    osvrTimeValueGetNow(&lastTime);
-//
-//    // Continue rendering until it is time to quit.
-//    while (!quit) {
-//        // Update the context so we get our callbacks called and
-//        // update tracker state.
-//        context.update();
-//
-//        //==========================================================================
-//        // This section handles flying the user around based on the analog inputs.
-//
-//        // Read the current value of the analogs we want
-//        OSVR_TimeValue  ignore;
-//        OSVR_AnalogState triggerValue = 0;
-//        osvrGetAnalogState(analogTrigger.get(), &ignore, &triggerValue);
-//        OSVR_AnalogState leftStickXValue = 0;
-//        osvrGetAnalogState(analogLeftStickX.get(), &ignore, &leftStickXValue);
-//        OSVR_AnalogState leftStickYValue = 0;
-//        osvrGetAnalogState(analogLeftStickY.get(), &ignore, &leftStickYValue);
-//        OSVR_AnalogState rightStickXValue = 0;
-//        osvrGetAnalogState(analogRightStickX.get(), &ignore, &rightStickXValue);
-//
-//        // Figure out how much to move and in which directions based
-//        // on how much time as passed and what the analog values are.
-//        const double X_SPEED_SCALE = 3.0;
-//        const double Y_SPEED_SCALE = -3.0;  // Y axis on controller is backwards
-//        const double Z_SPEED_SCALE = -2.0;
-//        const double SPIN_SPEED_SCALE = -Q_PI / 2;  // Want to spin the other way
-//        OSVR_TimeValue  now;
-//        osvrTimeValueGetNow(&now);
-//        OSVR_TimeValue nowCopy = now;
-//        osvrTimeValueDifference(&now, &lastTime);
-//        lastTime = nowCopy;
-//
-//        double dt = now.seconds + now.microseconds * 1e-6;
-//        double right = dt * leftStickXValue * X_SPEED_SCALE;
-//        double forward = dt * leftStickYValue * Y_SPEED_SCALE;
-//        double up = dt * triggerValue * Z_SPEED_SCALE;
-//        double spin = dt * rightStickXValue * SPIN_SPEED_SCALE;
-//
-//        // The deltaY will always point up in world space, but the
-//        // motion in X and Y need to be rotated so that X goes in the
-//        // direction of forward gaze (-Z) and Y goes to the right (X).
-//        // These will be arbitrary 3D locations, so will be added to
-//        // all of X, Y, and Z.
-//        double deltaX = 0, deltaY = 0, deltaZ = 0;
-//        deltaY += up;
-//
-//        // Make forward be along -Z in head space.
-//        // Remember that room space is rotated w.r.t. world space
-//        OSVR_PoseState currentHead;
-//        OSVR_ReturnCode ret = osvrGetPoseState(headSpace.get(), &ignore, &currentHead);
-//        if (ret == OSVR_RETURN_SUCCESS) {
-//
-//          // Adjust the rotation by spinning around the vertical (Y) axis
-//          q_type rot;
-//          q_from_axis_angle(rot, 0, 1, 0, spin);
-//          q_xyz_quat_type cur_pose;
-//          q_from_OSVR(cur_pose, pose);
-//          q_mult(cur_pose.quat, rot, cur_pose.quat);
-//          q_to_OSVR(pose, cur_pose);
-//
-//          // Get the current head pose in room space.
-//          q_xyz_quat_type poseXform;
-//          q_from_OSVR(poseXform, currentHead);
-//
-//          // Find -Z in world space by catenating the room-to-world
-//          // rotation.
-//          q_vec_type negZ = { 0, 0, -1 };
-//          q_vec_type forwardDir;
-//          q_xform(forwardDir, poseXform.quat, negZ);
-//          q_xform(forwardDir, cur_pose.quat, forwardDir);
-//          q_vec_scale(forwardDir, forward, forwardDir);
-//          deltaX += forwardDir[Q_X];
-//          deltaY += forwardDir[Q_Y];
-//          deltaZ += forwardDir[Q_Z];
-//
-//          // Make right be along +X in head space.
-//          // Remember that room space is rotated w.r.t. world space.
-//          q_vec_type X = { 1, 0, 0 };
-//          q_vec_type rightDir;
-//          q_xform(rightDir, poseXform.quat, X);
-//          q_xform(rightDir, cur_pose.quat, rightDir);
-//          q_vec_scale(rightDir, right, rightDir);
-//          deltaX += rightDir[Q_X];
-//          deltaY += rightDir[Q_Y];
-//          deltaZ += rightDir[Q_Z];
-//
-//          // Adjust the roomToWorld pose based on the changes,
-//          // unless there was too long of a time between readings.
-//          if (dt < 0.5) {
-//            pose.translation.data[0] += deltaX;
-//            pose.translation.data[1] += deltaY;
-//            pose.translation.data[2] += deltaZ;
-//          }
-//        }
-//
-//        //==========================================================================
-//        // Render the scene, sending it the current roomToWorld transform that
-//        // tells it about how we are flying.
-//        osvr::renderkit::RenderManager::RenderParams params;
-//        params.worldFromRoomAppend = &pose;
-//        if (!render->Render(params)) {
-//            std::cerr
-//                << "Render() returned false, maybe because it was asked to quit"
-//                << std::endl;
-//            quit = true;
-//        }
-//    }
-//
-//    glDeleteVertexArrays(1, &g_fontVertexArrayId);
-//    glDeleteBuffers(1, &g_fontVertexBuffer);
-//    glDeleteTextures(1, &g_on_tex);
-//    glDeleteTextures(1, &g_font_tex);
-//    if (g_face) { FT_Done_Face(g_face); g_face = nullptr; }
-//    if (g_ft) { FT_Done_FreeType(g_ft); g_ft = nullptr; }
-//
-//    // Close the Renderer interface cleanly.
-//    delete render;
-//
-//    return 0;
-//}
