@@ -90,7 +90,11 @@ static const GLchar* vertexShader =
     "   fragmentColor = vertexColor;\n"
     "   textureCoord = vertexTextureCoord;\n"
     "}\n";
-static enum Plane {XY, XZ, YZ};
+
+
+static const int XY = 0;
+static const int XZ = 1;
+static const int YZ = 2;
 
 /// @brief This is the OpenGL shader used to color fragments.
 /// @param [in] tex The texture sampler used to map the texture.  The texture value
@@ -363,7 +367,7 @@ static void addFontQuadYZ(std::vector<FontVertex>& vertexBufferData,
 /// @param [in] sy Spacing for the text in y.
 
 bool render_text(const GLdouble projection[], const GLdouble modelView[],
-    const char *text, float x, float y, float z, float sx, float sy, Plane p)
+    const char *text, float x, float y, float z, float sx, float sy, int plane)
 {
   if (!g_face) {
     std::cerr << "render_text(): No face" << std::endl;
@@ -469,48 +473,45 @@ bool render_text(const GLdouble projection[], const GLdouble modelView[],
       return false;
     }
 
+    float x2; float y2; float z2; float w; float h;
     
-    switch (p) {
-    case XY : 
-        float x2 = x + g->bitmap_left * sx;
-        float y2 = y + g->bitmap_top * sy;
-        float w = g->bitmap.width * sx;
-        float h = g->bitmap.rows * sy;
+    switch (plane) 
+    case 0: { //xy
+         x2 = x + g->bitmap_left * sx;
+         y2 = y + g->bitmap_top * sy;
+         w = g->bitmap.width * sx;
+         h = g->bitmap.rows * sy;
         // Blend in the text, fully opaque (inverse alpha) and fully white.
         vertexBufferData.clear();
-        addFontQuad(vertexBufferData, x2, x2 + w, y2, y2 - h, z, 1,1,1,0);
+        addFontQuad(vertexBufferData, x2, x2 + w, y2, y2 - h, z, 1, 1, 1, 0);
         break;
-    case XZ :
-        float x2 = x + g->bitmap_left * sx;
-        float z2 = z + g->bitmap_top * sy;
-        float w = g->bitmap.width * sx;
-        float h = g->bitmap.rows * sy;
+    case 1:  //xz
+         x2 = x + g->bitmap_left * sx;
+         z2 = z + g->bitmap_top * sy;
+         w = g->bitmap.width * sx;
+         h = g->bitmap.rows * sy;
         // Blend in the text, fully opaque (inverse alpha) and fully white.
         vertexBufferData.clear();
         addFontQuadXZ(vertexBufferData, x2, x2 + w, y, z2, z2 - h, 1, 1, 1, 0);
         break;
-    case YZ : 
-        float z2 = z + g->bitmap_left * sx;
-        float y2 = y + g->bitmap_top * sy;
-        float w = g->bitmap.width * sx;
-        float h = g->bitmap.rows * sy;
+    
+    case 2:  //yz
+         z2 = z + g->bitmap_left * sx;
+         y2 = y + g->bitmap_top * sy;
+         w = g->bitmap.width * sx;
+         h = g->bitmap.rows * sy;
         // Blend in the text, fully opaque (inverse alpha) and fully white.
         vertexBufferData.clear();
-        addFontQuadYZ(vertexBufferData, x, y2, y2-h, z2+w, z2, 1, 1, 1, 0);
+        addFontQuadYZ(vertexBufferData, x, y2, y2 - h, z2 + w, z2, 1, 1, 1, 0);
         break;
+    
     }
 
-    float x2 = x + g->bitmap_left * sx;
-    float y2 = y + g->bitmap_top * sy;
-    float w = g->bitmap.width * sx;
-    float h = g->bitmap.rows * sy;
-
-    float z2 = z + g->bitmap_top * sy;
-
-    // Blend in the text, fully opaque (inverse alpha) and fully white.
-    vertexBufferData.clear();
+     // Blend in the text, fully opaque (inverse alpha) and fully white.
+    //vertexBufferData.clear();
     //addFontQuad(vertexBufferData, x2, x2 + w, y2, y2 - h, z, 1,1,1,0);
-    addFontQuadXZ(vertexBufferData, x2, x2+w, y, z2, z2-h, 1, 1, 1, 0);
+    //addFontQuadXZ(vertexBufferData, x2, x2+w, y, z2, z2-h, 1, 1, 1, 0);
+
     glBindBuffer(GL_ARRAY_BUFFER, g_fontVertexBuffer);
     glBufferData(GL_ARRAY_BUFFER,
       sizeof(vertexBufferData[0]) * vertexBufferData.size(),
@@ -876,24 +877,24 @@ void DrawWorld(
     glBindTexture(GL_TEXTURE_2D, g_on_tex);
     //roomCube.draw(projectionGL, viewGL);
 
-    Plane xy = XY; Plane xz = XZ; Plane yz = YZ;
+    
 
-    if (!render_text(projectionGL, viewGL, "#", -5,-2,-5, 0.1f, 0.1f, xy)) {
+    if (!render_text(projectionGL, viewGL, "#", -5,-2,-5, 0.1f, 0.1f, YZ)) {
       quit = true;
     }
-    if (!render_text(projectionGL, viewGL, "#", -5, -2, 5, 0.1f, 0.1f,xz)) {
+    if (!render_text(projectionGL, viewGL, "#", -5, -2, 5, 0.1f, 0.1f, XY)) {
         quit = true;
     }
-    if (!render_text(projectionGL, viewGL, "#", 5, -2, -5, 0.01f, 0.01f,xy)) {
+    if (!render_text(projectionGL, viewGL, "#", 5, -2, -5, 0.01f, 0.01f, XY)) {
         quit = true;
     }
-    if (!render_text(projectionGL, viewGL, "#", 5, -2, 5, 0.1f, 0.1f, xy)) {
+    if (!render_text(projectionGL, viewGL, "#", 4, -2, 4, 0.1f, 0.1f, XY)) {
         quit = true;
     }
-    if (!render_text(projectionGL, viewGL, "#", 5, -2, 5, 0.1f, 0.1f,xz)) {
+    if (!render_text(projectionGL, viewGL, "#", 3, -2, 3, 0.1f, 0.1f, XY)) {
         quit = true;
     }
-    if (!render_text(projectionGL, viewGL, "#", 5, -2, 5, 0.1f, 0.1f,yz)) {
+    if (!render_text(projectionGL, viewGL, "#", 2, -2, 2, 0.1f, 0.1f, XY)) {
         quit = true;
     }
 }
@@ -944,7 +945,7 @@ void DrawHead(
 
   // Draw some text in front of us.
   glBindTexture(GL_TEXTURE_2D, g_on_tex);
-  if (!render_text(projectionGL, viewGL, "Hello, Head Space", -1,0,-2, 0.003f,0.003f)) {
+  if (!render_text(projectionGL, viewGL, "Hello, Head Space", -1,0,-2, 0.003f,0.003f, XY)) {
     quit = true;
   }
 }
