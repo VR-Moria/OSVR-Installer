@@ -53,6 +53,7 @@
 #include <freetype2/ft2build.h>
 #include FT_FREETYPE_H
 
+#include <fstream>  //for parsing text file
 // Standard includes
 #include <iostream>
 #include <string>
@@ -492,7 +493,7 @@ bool render_text(const GLdouble projection[], const GLdouble modelView[],
          h = g->bitmap.rows * sy;
         // Blend in the text, fully opaque (inverse alpha) and fully white.
         vertexBufferData.clear();
-        addFontQuadXZ(vertexBufferData, x2, x2 + w, y, z2, z2 - h, 1, 1, 1, 0);
+        addFontQuadXZ(vertexBufferData, x2, x2 + w, y, z2-h, z2, 1, 1, 1, 0);
         break;
     
     case 2:  //yz
@@ -502,7 +503,7 @@ bool render_text(const GLdouble projection[], const GLdouble modelView[],
          h = g->bitmap.rows * sy;
         // Blend in the text, fully opaque (inverse alpha) and fully white.
         vertexBufferData.clear();
-        addFontQuadYZ(vertexBufferData, x, y2, y2 - h, z2 + w, z2, 1, 1, 1, 0);
+        addFontQuadYZ(vertexBufferData, x, y2, y2 - h, z2, z2+w, 1, 1, 1, 0);
         break;
     
     }
@@ -877,26 +878,73 @@ void DrawWorld(
     glBindTexture(GL_TEXTURE_2D, g_on_tex);
     //roomCube.draw(projectionGL, viewGL);
 
-    
+    //open text file and parse one char at a time, 
+    //carriage return at every newline
+    std::ifstream ifs;
+    // std::cerr << "attempting to open text file\n";
+    ifs.open ("../../../UBuild/umoria/print_floor_test.txt", std::ifstream::in);
+    if (ifs.is_open()) {
+        // std::cerr << "opened file\n";
+    } else {
+        std::cerr << "could not open file\n";
+        perror("file.txt ");  
+        exit(1);
+    }
 
-    if (!render_text(projectionGL, viewGL, "#", -5,-2,-5, 0.1f, 0.1f, YZ)) {
-      quit = true;
+    char c;
+    GLuint playerX = 0;
+    GLuint playerZ = 0;
+    while (ifs.get(c)) {  //get coords for @
+        char curr = c;
+        if (curr == '@') {
+            break;
+        } 
+        else if (curr == '\n') {
+            playerX -= 4;
+            playerZ = 0;
+        } else {
+            playerZ += 4;
+        }
     }
-    if (!render_text(projectionGL, viewGL, "#", -5, -2, 5, 0.1f, 0.1f, XY)) {
-        quit = true;
+    //translate around @
+    std::cerr << "translating X:";
+    std::cerr << playerX;
+    std::cerr << "\n";
+    std::cerr << "translating Z:";
+    std::cerr << playerZ;
+    std::cerr << "\n";
+
+    GLuint dx = playerX;
+    GLuint dz = playerZ;
+
+    while (ifs.get(c)) {         // loop rendering characters
+        // std::cerr << c;
+        char curr = c;
+        if (curr != '\n') {
+          char* arr = new char[2];
+          arr[0] = curr;
+          arr[1] = '\0';
+          if (!render_text(projectionGL, viewGL, arr, dx,-2,dz, 0.1f, 0.1f, XZ)) {
+            quit = true;
+          }
+          dz -= 4;
+        }
+        else {
+            dz = playerZ;
+            dx += 4;
+        }     
     }
-    if (!render_text(projectionGL, viewGL, "#", 5, -2, -5, 0.01f, 0.01f, XY)) {
-        quit = true;
-    }
-    if (!render_text(projectionGL, viewGL, "#", 4, -2, 4, 0.1f, 0.1f, XY)) {
-        quit = true;
-    }
-    if (!render_text(projectionGL, viewGL, "#", 3, -2, 3, 0.1f, 0.1f, XY)) {
-        quit = true;
-    }
-    if (!render_text(projectionGL, viewGL, "#", 2, -2, 2, 0.1f, 0.1f, XY)) {
-        quit = true;
-    }
+    ifs.close();                // close file
+
+    // if (!render_text(projectionGL, viewGL, "#", -1,-2,0, 0.1f, 0.1f, XZ)) {
+    //   quit = true;
+    // }
+    // if (!render_text(projectionGL, viewGL, "#", -1,-2,-5, 0.1f, 0.1f, XZ)) {
+    //   quit = true;
+    // }
+    // if (!render_text(projectionGL, viewGL, "#", -1,-2,-2, 0.1f, 0.1f, XY)) {
+    //   quit = true;
+    // }
 }
 
 
@@ -945,9 +993,9 @@ void DrawHead(
 
   // Draw some text in front of us.
   glBindTexture(GL_TEXTURE_2D, g_on_tex);
-  if (!render_text(projectionGL, viewGL, "Hello, Head Space", -1,0,-2, 0.003f,0.003f, XY)) {
-    quit = true;
-  }
+  // if (!render_text(projectionGL, viewGL, "Hello, Head Space", -1,0,-2, 0.003f,0.003f, XY)) {
+  //   quit = true;
+  // }
 }
 
 // This is used to draw both hands, but a different callback could be
