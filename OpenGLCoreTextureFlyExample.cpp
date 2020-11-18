@@ -963,8 +963,13 @@ void DrawWorld(
           if (curr == '#') {
               draw_box(projectionGL, viewGL, "#", dx, -2.0f, dz, 0.1f, 0.1f);
           }
-          else {
+          else if (curr == '.') {
             if (!render_text(projectionGL, viewGL, arr, dx,-2,dz, 0.1f, 0.1f, XZ)) {
+                quit = true;
+            }
+          }
+          else {
+            if (!render_text(projectionGL, viewGL, arr, dx,-2,dz, 0.1f, 0.1f, XY)) {
                 quit = true;
             }
           }
