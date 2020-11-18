@@ -746,6 +746,24 @@ static BOOL CtrlHandler(DWORD fdwCtrlType)
 }
 #endif
 
+void draw_box(const GLdouble projection[], const GLdouble modelView[],
+    const char* text, float midx, float midy, float midz, float sx, float sy) {
+    float wallWidth = 1.0f;
+    if (!render_text(projection, modelView, text, midx + wallWidth, midy, midz, 0.1f, 0.1f, YZ)) {
+        quit = true;
+    }
+    if (!render_text(projection, modelView, text, midx - wallWidth, midy, midz, 0.1f, 0.1f, YZ)) {
+        quit = true;
+    }
+    if (!render_text(projection, modelView, text, midx, midy, midz + wallWidth, 0.1f, 0.1f, XY)) {
+        quit = true;
+    }
+    if (!render_text(projection, modelView, text, midx, midy, midz - wallWidth, 0.1f, 0.1f, XY)) {
+        quit = true;
+    }
+
+}
+
 // This callback sets a boolean value whose pointer is passed in to
 // the state of the button that was pressed.  This lets the callback
 // be used to handle any button press that just needs to update state.
@@ -942,8 +960,13 @@ void DrawWorld(
           char* arr = new char[2];
           arr[0] = curr;
           arr[1] = '\0';
-          if (!render_text(projectionGL, viewGL, arr, dx,-2,dz, 0.1f, 0.1f, XZ)) {
-            quit = true;
+          if (curr == '#') {
+              draw_box(projectionGL, viewGL, "#", dx, -2.0f, dz, 0.1f, 0.1f);
+          }
+          else {
+            if (!render_text(projectionGL, viewGL, arr, dx,-2,dz, 0.1f, 0.1f, XZ)) {
+                quit = true;
+            }
           }
           dz -= 4.0;
         }
