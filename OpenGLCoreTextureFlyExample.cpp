@@ -836,6 +836,7 @@ void SetupEye(
       static_cast<GLint>(viewport.height));
 }
 
+
 /// @brief Callback to draw things in world space.
 ///
 /// Edit this function to draw things in the world, which will remain in place
@@ -892,19 +893,29 @@ void DrawWorld(
     }
 
     char c;
-    GLuint playerX = 0;
-    GLuint playerZ = 0;
+    float playerX = 0.0;
+    float playerZ = 0.0;
     while (ifs.get(c)) {  //get coords for @
         char curr = c;
         if (curr == '@') {
             break;
         } 
         else if (curr == '\n') {
-            playerX -= 4;
-            playerZ = 0;
+            playerX -= 4.0;
+            playerZ = 0.0;
         } else {
-            playerZ += 4;
+            playerZ += 4.0;
         }
+    }
+    ifs.close();                // close file
+
+    ifs.open ("../../../UBuild/umoria/print_floor_test.txt", std::ifstream::in);
+    if (ifs.is_open()) {
+        // std::cerr << "opened file\n";
+    } else {
+        std::cerr << "could not open file\n";
+        perror("print_floor_test.txt ");  
+        exit(1);
     }
     //translate around @
     std::cerr << "translating X:";
@@ -914,12 +925,19 @@ void DrawWorld(
     std::cerr << playerZ;
     std::cerr << "\n";
 
-    GLuint dx = playerX;
-    GLuint dz = playerZ;
+    float dx = playerX;
+    float dz = playerZ;
 
     while (ifs.get(c)) {         // loop rendering characters
         // std::cerr << c;
         char curr = c;
+        // if (curr == '@') {
+        //   std::cerr << '@: ';
+        //   std::cerr << dx;
+        //   std::cerr << ', ';
+        //   std::cerr << dz;
+        //   std::cerr << '\n';
+        // }
         if (curr != '\n') {
           char* arr = new char[2];
           arr[0] = curr;
@@ -927,14 +945,21 @@ void DrawWorld(
           if (!render_text(projectionGL, viewGL, arr, dx,-2,dz, 0.1f, 0.1f, XZ)) {
             quit = true;
           }
-          dz -= 4;
+          dz -= 4.0;
         }
         else {
             dz = playerZ;
-            dx += 4;
+            dx += 4.0;
         }     
     }
     ifs.close();                // close file
+
+    // std::cerr << "playerX after render:";
+    // std::cerr << playerX;
+    // std::cerr << "\n";
+    // std::cerr << "playerZ after render:";
+    // std::cerr << playerZ;
+    // std::cerr << "\n";
 
     // if (!render_text(projectionGL, viewGL, "#", -1,-2,0, 0.1f, 0.1f, XZ)) {
     //   quit = true;
